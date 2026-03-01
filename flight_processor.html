@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flight Path Processor</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:#0a0e17; --surface:#111827; --surface2:#1a2236;
+  --border:#243048; --accent:#00d4ff; --text:#e2e8f0;
+  --text-dim:#64748b; --green:#10b981; --red:#ef4444;
+  --shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+[data-theme="light"] {
+  --bg:#f0f4f8; --surface:#ffffff; --surface2:#e8eef5;
+  --border:#c8d6e5; --accent:#0080aa; --text:#1a2535;
+  --text-dim:#6b7c93; --green:#0d7f5f; --red:#c0392b;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding:0 0 60px;transition:background .25s,color .25s;}
+[data-theme="dark"] body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.012) 2px,rgba(0,212,255,.012) 4px);pointer-events:none;z-index:1000;}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;gap:16px;position:relative;box-shadow:var(--shadow);transition:background .25s,border-color .25s;}
+header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);}
+.logo{width:36px;height:36px;border:2px solid var(--accent);display:grid;place-items:center;font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);flex-shrink:0;transition:all .25s;}
+header h1{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--accent);letter-spacing:3px;text-transform:uppercase;transition:color .25s;}
+header p{font-size:12px;color:var(--text-dim);letter-spacing:.5px;margin-top:2px;transition:color .25s;}
+.header-right{margin-left:auto;}
+.theme-toggle{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 14px;cursor:pointer;display:flex;align-items:center;gap:7px;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--text-dim);transition:all .2s;white-space:nowrap;}
+.theme-toggle:hover{border-color:var(--accent);color:var(--accent);}
+.main{max-width:1100px;margin:0 auto;padding:36px 24px;display:flex;flex-direction:column;gap:22px;}
+.upload-zone{border:2px dashed var(--border);background:var(--surface);border-radius:6px;padding:48px 40px;text-align:center;cursor:pointer;transition:all .2s;}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:var(--surface2);}
+.upload-zone.has-file{border-color:var(--green);border-style:solid;}
+.upload-icon{width:50px;height:50px;margin:0 auto 14px;border:2px solid var(--text-dim);border-radius:50%;display:grid;place-items:center;font-size:20px;color:var(--text-dim);transition:all .2s;}
+.upload-zone:hover .upload-icon{border-color:var(--accent);color:var(--accent);}
+.upload-zone.has-file .upload-icon{border-color:var(--green);color:var(--green);}
+.upload-label{font-family:'Space Mono',monospace;font-size:13px;color:var(--text-dim);}
+.upload-label strong{color:var(--text);}
+.upload-sub{font-size:12px;color:var(--text-dim);margin-top:5px;}
+.upload-filename{font-family:'Space Mono',monospace;font-size:12px;color:var(--green);margin-top:8px;}
+#file-input{display:none;}
+.controls{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:18px 22px;display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:end;box-shadow:var(--shadow);transition:background .25s,border-color .25s;}
+.field label{display:block;font-family:'Space Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+.field input,.field select{background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'Barlow',sans-serif;font-size:14px;padding:9px 12px;border-radius:4px;width:100%;outline:none;transition:border-color .2s,background .25s,color .25s;}
+.field input:focus,.field select:focus{border-color:var(--accent);}
+.field select option{background:var(--bg);}
+.btn{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;padding:10px 16px;border:1px solid;border-radius:4px;cursor:pointer;transition:all .15s;white-space:nowrap;display:flex;align-items:center;gap:6px;background:transparent;}
+.btn-outline{border-color:var(--border);color:var(--text-dim);}
+.btn-outline:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
+.btn:disabled{opacity:.3;cursor:not-allowed;}
+.progress-section{display:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:18px 22px;box-shadow:var(--shadow);transition:background .25s,border-color .25s;}
+.progress-section.visible{display:block;}
+.progress-header{display:flex;justify-content:space-between;margin-bottom:10px;}
+.progress-title{font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;}
+.progress-pct{font-family:'Space Mono',monospace;font-size:11px;color:var(--text-dim);}
+.progress-track{background:var(--bg);border:1px solid var(--border);border-radius:2px;height:5px;overflow:hidden;margin-bottom:12px;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),#0099cc);border-radius:2px;width:0%;transition:width .4s ease;}
+[data-theme="light"] .progress-fill{background:linear-gradient(90deg,#0080aa,#005577);}
+.log-lines{font-family:'Space Mono',monospace;font-size:11px;color:var(--text-dim);line-height:1.9;max-height:140px;overflow-y:auto;}
+.log-ok{color:var(--green);} .log-err{color:var(--red);} .log-info{color:var(--accent);}
+.chart-section{display:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:22px 22px 18px;box-shadow:var(--shadow);transition:background .25s,border-color .25s;}
+.chart-section.visible{display:block;}
+.chart-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;}
+.chart-title{font-family:'Space Mono',monospace;font-size:12px;color:var(--text);letter-spacing:2px;text-transform:uppercase;}
+.chart-subtitle{font-size:12px;color:var(--text-dim);margin-top:4px;}
+.chart-container{position:relative;height:280px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">FP</div>
+  <div>
+    <h1>Flight Path Processor</h1>
+    <p>Drone telemetry &middot; Ground elevation &middot; KML export</p>
+  </div>
+  <div class="header-right">
+    <button class="theme-toggle" id="theme-toggle">
+      <span id="theme-icon">🌙</span>
+      <span id="theme-label">Dark Mode</span>
+    </button>
+  </div>
+</header>
+<div class="main">
+  <div class="upload-zone" id="upload-zone">
+    <input type="file" id="file-input" accept=".csv">
+    <div class="upload-icon" id="upload-icon">↑</div>
+    <div class="upload-label"><strong>Drop CSV file here</strong></div>
+    <div class="upload-sub">or click to browse &middot; uses columns b,c,d,f,h,i &middot; samples every 10th row</div>
+    <div class="upload-filename" id="upload-filename"></div>
+  </div>
+  <div class="controls">
+    <div class="field">
+      <label>KML Path Title</label>
+      <input type="text" id="kml-name" placeholder="e.g. Survey Flight 2024-01-15" value="Flight Path">
+    </div>
+    <div class="field">
+      <label>Dataset</label>
+      <select id="dataset">
+        <option value="aster30m">ASTER 30m (global)</option>
+        <option value="ned10m">NED 10m (US only)</option>
+      </select>
+    </div>
+    <button class="btn btn-outline" id="btn-csv" disabled>↓ CSV</button>
+    <button class="btn btn-outline" id="btn-kml" disabled>↓ KML</button>
+  </div>
+  <div class="progress-section" id="progress-section">
+    <div class="progress-header">
+      <span class="progress-title">Processing</span>
+      <span class="progress-pct" id="progress-pct">0%</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="log-lines" id="log-lines"></div>
+  </div>
+  <div class="chart-section" id="chart1-section">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title">Elevation Profile</div>
+        <div class="chart-subtitle">Ground Elevation &amp; Flight Altitude vs Distance Along Path</div>
+      </div>
+      <button class="btn btn-outline" id="btn-dl-chart1" disabled>↓ PNG</button>
+    </div>
+    <div class="chart-container"><canvas id="chart1"></canvas></div>
+  </div>
+  <div class="chart-section" id="chart2-section">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title">Height Above Ground</div>
+        <div class="chart-subtitle">Height Above Ground vs Distance Along Path</div>
+      </div>
+      <button class="btn btn-outline" id="btn-dl-chart2" disabled>↓ PNG</button>
+    </div>
+    <div class="chart-container"><canvas id="chart2"></canvas></div>
+  </div>
+</div>
+
+<script>
+// ── Theme ────────────────────────────────────────────────────────────────
+let isDark = false;
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  isDark = !isDark;
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  document.getElementById('theme-icon').textContent = isDark ? '☀️' : '🌙';
+  document.getElementById('theme-label').textContent = isDark ? 'Light Mode' : 'Dark Mode';
+  if (chart1) updateChartTheme(chart1);
+  if (chart2) updateChartTheme(chart2);
+});
+function chartThemeColors() {
+  return {
+    dim:    isDark ? '#475569' : '#7a8fa0',
+    grid:   isDark ? '#1e2d45' : '#dde8f0',
+    label:  isDark ? '#64748b' : '#7a8fa0',
+    legend: isDark ? '#94a3b8' : '#4a5568',
+    ttBg:   isDark ? '#1a2236' : '#ffffff',
+    ttBorder: isDark ? '#243048' : '#c8d6e5',
+    ttTitle:  isDark ? '#e2e8f0' : '#1a2535',
+    ttBody:   isDark ? '#94a3b8' : '#4a5568',
+  };
+}
+function updateChartTheme(chart) {
+  const c = chartThemeColors();
+  chart.options.scales.x.ticks.color = c.dim;
+  chart.options.scales.y.ticks.color = c.dim;
+  chart.options.scales.x.grid.color  = c.grid;
+  chart.options.scales.y.grid.color  = c.grid;
+  chart.options.scales.x.title.color = c.label;
+  chart.options.scales.y.title.color = c.label;
+  chart.options.plugins.legend.labels.color = c.legend;
+  chart.options.plugins.tooltip.backgroundColor = c.ttBg;
+  chart.options.plugins.tooltip.borderColor     = c.ttBorder;
+  chart.options.plugins.tooltip.titleColor      = c.ttTitle;
+  chart.options.plugins.tooltip.bodyColor       = c.ttBody;
+  chart.update();
+}
+
+// ── State ────────────────────────────────────────────────────────────────
+let csvFile = null, processedData = null, chart1 = null, chart2 = null;
+const $ = id => document.getElementById(id);
+const uz = $('upload-zone'), fi = $('file-input');
+
+uz.addEventListener('click', () => fi.click());
+fi.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+uz.addEventListener('dragover', e => { e.preventDefault(); uz.classList.add('drag-over'); });
+uz.addEventListener('dragleave', () => uz.classList.remove('drag-over'));
+uz.addEventListener('drop', e => {
+  e.preventDefault(); uz.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.name.toLowerCase().endsWith('.csv')) handleFile(f);
+});
+
+function handleFile(f) {
+  csvFile = f; uz.classList.add('has-file');
+  $('upload-icon').textContent = '✓'; $('upload-filename').textContent = f.name;
+  processedData = null;
+  ['btn-csv','btn-kml','btn-dl-chart1','btn-dl-chart2'].forEach(id => $(id).disabled = true);
+  $('chart1-section').classList.remove('visible'); $('chart2-section').classList.remove('visible');
+  clearLog(); $('progress-section').classList.remove('visible');
+  setTimeout(processFile, 300);
+}
+
+function log(msg, cls='') {
+  const d = document.createElement('div'); if (cls) d.className = cls;
+  d.textContent = '> ' + msg; $('log-lines').appendChild(d); $('log-lines').scrollTop = 9999;
+}
+function clearLog() { $('log-lines').innerHTML = ''; }
+function setProgress(pct) {
+  $('progress-fill').style.width = pct + '%';
+  $('progress-pct').textContent = Math.round(pct) + '%';
+}
+
+// ── CSV parse ────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
+  const rows = lines.slice(1)
+    .map(line => {
+      const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g,''));
+      const obj = {}; headers.forEach((h,i) => obj[h] = cols[i] ?? '');
+      return obj;
+    })
+    .filter(r => Object.values(r).some(v => v !== ''));
+  return { headers, rows };
+}
+
+// ── Phase 1 ──────────────────────────────────────────────────────────────
+function phase1(headers, rows) {
+  if (headers.length < 9) throw new Error(`Need >= 9 columns, found ${headers.length}`);
+  const kH = [0,1,2,5,7,8].map(i => headers[i]);
+  const lastCol = kH[kH.length-1];
+  const allH = [...kH, 'GndElev', 'Distance Along Path', 'FlightAltitude', 'HeightAboveGround'];
+  const out = rows.map(row => {
+    const r = {}; kH.forEach(h => r[h] = row[h]);
+    r.GndElev = null; r['Distance Along Path'] = null; r.FlightAltitude = null; r.HeightAboveGround = null;
+    return r;
+  });
+  out[0]['Distance Along Path'] = 0;
+  for (let i = 1; i < out.length; i++) {
+    const v = parseFloat(rows[i][lastCol]) || 0;
+    out[i]['Distance Along Path'] = out[i-1]['Distance Along Path'] + 0.1 * v;
+  }
+  return { headers: allH, rows: out };
+}
+
+// ── Elevation fetch via OpenTopoData.org via proxy ───────────────
+
+async function fetchElevationsBatch(locs, dataset) {
+  const locStr = locs.map(([lat, lon]) => `${lat},${lon}`).join('|');
+  const url = `http://creative-melisandra-droneteam-fb5207f5.koyeb.app/v1/${dataset}`; 
+  
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ locations: locStr }) // Send as JSON object
+  });
+  
+  if (!resp.ok) {
+    const errorText = await resp.text();
+    throw new Error(`HTTP ${resp.status}: ${errorText}`);
+  }
+  
+  const data = await resp.json();
+  // Note: OpenTopoData returns uppercase "OK"
+  if (data.status !== 'OK') throw new Error(`OpenTopoData: ${data.status}`);
+  return data.results.map(r => r.elevation);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Phase 2 ──────────────────────────────────────────────────────────────
+async function phase2(p1, dataset, onPct) {
+  const { headers, rows } = p1;
+  const findH = pat => headers.find(h => h.toLowerCase().includes(pat));
+  const latH    = findH('lat')            || headers[0];
+  const lngH    = findH('lng') || findH('lon') || headers[1];
+  const heightH = findH('height')         || headers[4];
+
+  const sel = rows.filter((_, i) => i % 10 === 0);
+  const total = sel.length;
+  log(`Selected ${total} rows (every 10th)`, 'log-info');
+
+  const allElevs = [];
+  const BS = 100;
+  const totalB = Math.ceil(total / BS);
+
+  for (let b = 0; b < total; b += BS) {
+    const batch = sel.slice(b, b + BS);
+    const bn = Math.floor(b / BS) + 1;
+    log(`Fetching batch ${bn}/${totalB} (${batch.length} pts)...`);    const locs = batch.map(r => [parseFloat(r[latH]), parseFloat(r[lngH])]);
+    const elevs = await fetchElevationsBatch(locs, dataset);
+    allElevs.push(...elevs);
+    onPct(20 + (allElevs.length / total) * 70);
+    // Small polite delay between batches
+    if (b + BS < total) await sleep(300);
+  }
+
+  log(`Received ${allElevs.length} elevations`, 'log-ok');
+  const launchElev = allElevs[0];
+
+  sel.forEach((row, i) => {
+    const gnd = Math.round(allElevs[i] * 100) / 100;
+    const h   = parseFloat(row[heightH]) || 0;
+    row.GndElev          = gnd;
+    row.FlightAltitude   = Math.round((h + launchElev) * 100) / 100;
+    row.HeightAboveGround = Math.round((row.FlightAltitude - gnd) * 100) / 100;
+  });
+  return sel;
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────
+async function processFile() {
+  if (!csvFile) return;
+  clearLog(); $('progress-section').classList.add('visible'); setProgress(0);
+  try {
+    log(`Reading ${csvFile.name}...`, 'log-info');
+    const text = await csvFile.text();
+    const { headers, rows } = parseCSV(text);
+    log(`Loaded ${rows.length} rows, ${headers.length} columns`); setProgress(5);
+    log('Phase 1: column selection & distance...', 'log-info');
+    const p1 = phase1(headers, rows);
+    log(`Phase 1 done — ${p1.rows.length} rows`); setProgress(20);
+    log('Phase 2: fetching elevations from OpenTopoData.org via proxy ...', 'log-info');
+    const finalRows = await phase2(p1, $('dataset').value, pct => setProgress(pct));
+    setProgress(95);
+    processedData = { headers: p1.headers, rows: finalRows };
+    renderCharts(finalRows, p1.headers);
+    setProgress(100);
+    log(`Complete — ${finalRows.length} output rows`, 'log-ok');
+    $('btn-csv').disabled = false; $('btn-kml').disabled = false;
+  } catch(err) {
+    log('Error: ' + err.message, 'log-err'); setProgress(0);
+  }
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────
+function makeChartOpts(xL, yL) {
+  const c = chartThemeColors();
+  return {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: c.legend, font: { family:'Barlow', size:12 }, boxWidth:18 } },
+      tooltip: {
+        backgroundColor: c.ttBg, borderColor: c.ttBorder, borderWidth: 1,
+        titleColor: c.ttTitle, bodyColor: c.ttBody,
+        titleFont: { family:'Space Mono', size:11 }, bodyFont: { family:'Barlow', size:12 }
+      }
+    },
+    scales: {
+      x: {
+        ticks: { color:c.dim, font:{family:'Space Mono',size:9}, maxTicksLimit:10 },
+        grid:  { color:c.grid },
+        title: { display:true, text:xL, color:c.label, font:{family:'Barlow',size:12} }
+      },
+      y: {
+        ticks: { color:c.dim, font:{family:'Space Mono',size:9} },
+        grid:  { color:c.grid },
+        title: { display:true, text:yL, color:c.label, font:{family:'Barlow',size:12} }
+      }
+    }
+  };
+}
+
+function renderCharts(rows, headers) {
+  const dist = rows.map(r => Math.round((r['Distance Along Path'] || 0) * 10) / 10);
+  if (chart1) chart1.destroy();
+  chart1 = new Chart($('chart1').getContext('2d'), {
+    type: 'line',
+    data: { labels: dist, datasets: [
+      { label:'Ground Elevation (m)', data:rows.map(r=>r.GndElev),
+        borderColor:'#10b981', backgroundColor:'rgba(16,185,129,.1)',
+        borderWidth:2, pointRadius:0, fill:true, tension:.3 },
+      { label:'Flight Altitude (m)', data:rows.map(r=>r.FlightAltitude),
+        borderColor: isDark?'#00d4ff':'#0080aa',
+        backgroundColor: isDark?'rgba(0,212,255,.04)':'rgba(0,128,170,.04)',
+        borderWidth:2, pointRadius:0, fill:false, tension:.3 }
+    ]},
+    options: makeChartOpts('Distance Along Path (m)', 'Altitude (m)')
+  });
+  if (chart2) chart2.destroy();
+  chart2 = new Chart($('chart2').getContext('2d'), {
+    type: 'line',
+    data: { labels: dist, datasets: [
+      { label:'Height Above Ground (m)', data:rows.map(r=>r.HeightAboveGround),
+        borderColor:'#ff6b35', backgroundColor:'rgba(255,107,53,.1)',
+        borderWidth:2, pointRadius:0, fill:true, tension:.3 }
+    ]},
+    options: makeChartOpts('Distance Along Path (m)', 'Height (m)')
+  });
+  $('chart1-section').classList.add('visible'); $('chart2-section').classList.add('visible');
+  $('btn-dl-chart1').disabled = false; $('btn-dl-chart2').disabled = false;
+}
+
+// ── Export helpers ────────────────────────────────────────────────────────
+function rowsToCSV(h, rows) {
+  return [h.join(','), ...rows.map(r => h.map(k => r[k] ?? '').join(','))].join('\n');
+}
+function generateKML(rows, headers, name) {
+  const latH = headers.find(h => h.toLowerCase().includes('lat')) || headers[0];
+  const lngH = headers.find(h => h.toLowerCase().includes('lng') || h.toLowerCase().includes('lon')) || headers[1];
+  const coords = rows.map(r => `          ${r[lngH]},${r[latH]},${(r.FlightAltitude||0).toFixed(4)}`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <n>${name}</n>
+    <Style id="s"><LineStyle><color>ff0000ff</color><width>3</width></LineStyle></Style>
+    <Placemark>
+      <n>${name}</n>
+      <styleUrl>#s</styleUrl>
+      <LineString>
+        <altitudeMode>absolute</altitudeMode>
+        <coordinates>
+${coords}
+        </coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>`;
+}
+function dlBlob(content, filename, mime) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type:mime}));
+  a.download = filename; a.click();
+}
+function dlCanvas(id, filename) {
+  const c = $(id);
+  const t = document.createElement('canvas'); t.width = c.width; t.height = c.height;
+  const ctx = t.getContext('2d');
+  ctx.fillStyle = isDark ? '#111827' : '#ffffff';
+  ctx.fillRect(0, 0, t.width, t.height); ctx.drawImage(c, 0, 0);
+  const a = document.createElement('a'); a.href = t.toDataURL('image/png'); a.download = filename; a.click();
+}
+
+$('btn-csv').addEventListener('click', () => {
+  if (!processedData) return;
+  dlBlob(rowsToCSV(processedData.headers, processedData.rows),
+    csvFile.name.replace(/\.csv$/i,'') + '_processed.csv', 'text/csv');
+});
+$('btn-kml').addEventListener('click', () => {
+  if (!processedData) return;
+  dlBlob(generateKML(processedData.rows, processedData.headers, $('kml-name').value || 'Flight Path'),
+    csvFile.name.replace(/\.csv$/i,'') + '_path.kml', 'application/vnd.google-earth.kml+xml');
+});
+$('btn-dl-chart1').addEventListener('click', () => dlCanvas('chart1', 'elevation_profile.png'));
+$('btn-dl-chart2').addEventListener('click', () => dlCanvas('chart2', 'height_above_ground.png'));
+</script>
+</body>
+</html>
