@@ -25,6 +25,11 @@ rate_limiter = asyncio.Semaphore(1)
 class LocationRequest(BaseModel):
     locations: str
 
+# Root route for Koyeb health checks
+@app.get("/")
+async def root():
+    return {"status": "healthy"}
+
 @app.get("/health")
 async def health_check():
     """Simple endpoint to verify the proxy is running."""
