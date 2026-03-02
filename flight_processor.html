@@ -197,6 +197,49 @@ function updateChartTheme(chart) {
 
 // ── State ────────────────────────────────────────────────────────────────
 let csvFile = null, processedData = null, chart1 = null, chart2 = null;
+let healthStatus = null;   // null = pending, 'ok' = ready, 'error' = failed
+let healthCallTime = null; // timestamp when /health was called
+
+const ELEVATION_BASE = 'https://creative-melisandra-droneteam-fb5207f5.koyeb.app';
+
+function pingHealthEndpoint() {
+  healthStatus = null;
+  healthCallTime = Date.now();
+  log(`Health status ${healthStatus} — pinging elevation server...`, 'log-info');
+  fetch(`${ELEVATION_BASE}/health`)
+    .then(r => r.json())
+    .then(data => { 
+      healthStatus = (data.status === 'ok') ? 'ok' : 'error'; 
+   })
+    .then(() => {
+      if (healthStatus === 'ok') {
+        log('Elevation server is healthy', 'log-ok');
+      } else {
+        log('Elevation server health check returned unexpected status — attempting anyway', 'log-err');
+      }
+    })
+    .catch(() => { healthStatus = 'error';
+                   log('Failed to reach elevation server — attempting anyway', 'log-err');
+     });
+}
+
+async function waitForHealth() {
+  const WARN_AFTER_MS = 5000;
+  let warnLogged = false;
+  while (healthStatus !== 'ok') {
+    if (healthStatus === 'error') {
+      // Server returned something unexpected — proceed anyway
+      log('Elevation server health check failed — attempting anyway', 'log-err');
+      return;
+    }
+    const elapsed = Date.now() - healthCallTime;
+    if (!warnLogged && elapsed >= WARN_AFTER_MS) {
+      log('Waiting for elevation server to wake up', 'log-info');
+      warnLogged = true;
+    }
+    await sleep(250);
+  }
+}
 const $ = id => document.getElementById(id);
 const uz = $('upload-zone'), fi = $('file-input');
 
@@ -214,6 +257,7 @@ function handleFile(f) {
   csvFile = f; uz.classList.add('has-file');
   $('upload-icon').textContent = '✓'; $('upload-filename').textContent = f.name;
   processedData = null;
+  pingHealthEndpoint(); // fire immediately — don't wait
   ['btn-csv','btn-kml','btn-dl-chart1','btn-dl-chart2'].forEach(id => $(id).disabled = true);
   $('chart1-section').classList.remove('visible'); $('chart2-section').classList.remove('visible');
   clearLog(); $('progress-section').classList.remove('visible');
@@ -267,7 +311,7 @@ function phase1(headers, rows) {
 
 async function fetchElevationsBatch(locs, dataset) {
   const locStr = locs.map(([lat, lon]) => `${lat},${lon}`).join('|');
-  const url = `http://creative-melisandra-droneteam-fb5207f5.koyeb.app/v1/${dataset}`; 
+  const url = `${ELEVATION_BASE}/v1/${dataset}`; 
   
   const resp = await fetch(url, {
     method: 'POST',
@@ -299,6 +343,10 @@ async function phase2(p1, dataset, onPct) {
   const sel = rows.filter((_, i) => i % 10 === 0);
   const total = sel.length;
   log(`Selected ${total} rows (every 10th)`, 'log-info');
+
+  // Wait for elevation server to be ready before making any requests
+  await waitForHealth();
+  log('Elevation server ready', 'log-ok');
 
   const allElevs = [];
   const BS = 100;
