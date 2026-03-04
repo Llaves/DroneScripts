@@ -87,6 +87,12 @@ header p{font-size:12px;color:var(--text-dim);letter-spacing:.5px;margin-top:2px
 .url-panel-edit input:focus{border-color:var(--accent);}
 .btn-accent{border-color:var(--accent);color:var(--accent);}
 .btn-accent:hover{background:var(--accent);color:#fff;}
+.btn-accent:disabled{opacity:.5;cursor:not-allowed;}
+.url-check-msg{font-family:'Space Mono',monospace;font-size:11px;padding:6px 10px;border-radius:4px;border:1px solid;}
+.url-check-msg.checking{color:var(--text-dim);border-color:var(--border);background:var(--surface2);}
+.url-check-msg.error{color:var(--red);border-color:var(--red);background:rgba(180,35,24,.06);}
+.url-check-msg.error a{color:var(--red);font-weight:700;cursor:pointer;text-decoration:underline;}
+.url-check-msg.ok{color:var(--green);border-color:var(--green);background:rgba(15,118,110,.06);}
 .progress-section{display:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:18px 22px;box-shadow:var(--shadow);transition:background .25s,border-color .25s;}
 .progress-section.visible{display:block;}
 .progress-header{display:flex;justify-content:space-between;margin-bottom:10px;}
@@ -138,10 +144,15 @@ header p{font-size:12px;color:var(--text-dim);letter-spacing:.5px;margin-top:2px
       <button class="btn btn-outline url-edit-btn" id="btn-edit-url">✎ Edit URL</button>
     </div>
     <div class="url-panel-edit" id="url-panel-edit" style="display:none;">
-      <span class="url-panel-label">Elevation Proxy URL</span>
-      <input type="text" id="url-input" placeholder="https://your-proxy.example.com" spellcheck="false" autocomplete="off">
-      <button class="btn btn-accent" id="btn-save-url">Save</button>
-      <button class="btn btn-outline" id="btn-cancel-url">Cancel</button>
+      <div style="display:flex;flex-direction:column;flex:1;gap:7px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="url-panel-label">Elevation Proxy URL</span>
+          <input type="text" id="url-input" placeholder="https://your-proxy.example.com" spellcheck="false" autocomplete="off">
+          <button class="btn btn-accent" id="btn-save-url">Save</button>
+          <button class="btn btn-outline" id="btn-cancel-url">Cancel</button>
+        </div>
+        <div id="url-check-msg" class="url-check-msg" style="display:none;"></div>
+      </div>
     </div>
   </div>
   <div style="display:flex;gap:12px;align-items:stretch;">
@@ -285,6 +296,7 @@ function refreshUrlDisplay() {
 function showUrlEdit() {
   $('url-panel-view').style.display = 'none';
   $('url-panel-edit').style.display = 'flex';
+  setUrlCheckMsg(null);
   const inp = $('url-input');
   inp.value = ELEVATION_BASE;
   inp.focus();
@@ -296,25 +308,108 @@ function hideUrlEdit() {
   $('url-panel-view').style.display = 'flex';
 }
 
-function commitUrl() {
+function setUrlCheckMsg(type, html) {
+  const el = $('url-check-msg');
+  if (!type) { el.style.display = 'none'; el.className = 'url-check-msg'; el.innerHTML = ''; return; }
+  el.className = 'url-check-msg ' + type;
+  el.innerHTML = html;
+  el.style.display = 'block';
+}
+
+// Query a single DoH resolver. Returns true if the hostname resolves,
+// false if NXDOMAIN, throws on network/timeout error.
+async function queryDoH(resolverUrl, hostname) {
+  const url = `${resolverUrl}?name=${encodeURIComponent(hostname)}&type=A`;
+  const resp = await fetch(url, {
+    headers: { Accept: 'application/dns-json' },
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`DoH HTTP ${resp.status}`);
+  const data = await resp.json();
+  // Status 0 = NOERROR, 3 = NXDOMAIN
+  if (data.Status === 3) return false;   // definitively does not exist
+  if (data.Status !== 0) throw new Error(`DNS status ${data.Status}`);
+  return true;
+}
+
+// Race Google and Cloudflare DoH — whichever answers first wins.
+// Returns { resolved: bool, source: string } or throws if both fail.
+async function checkDNS(hostname) {
+  const resolvers = [
+    { name: 'Google',     url: 'https://dns.google/resolve' },
+    { name: 'Cloudflare', url: 'https://cloudflare-dns.com/dns-query' }
+  ];
+  return Promise.any(
+    resolvers.map(r =>
+      queryDoH(r.url, hostname).then(resolved => ({ resolved, source: r.name }))
+    )
+  );
+}
+
+async function commitUrl(skipCheck = false) {
   const raw = $('url-input').value.trim();
   if (!raw) return;
   const clean = stripTrailingSlash(raw);
+
+  if (!skipCheck) {
+    // Extract the hostname from the URL for DNS lookup
+    let hostname;
+    try {
+      hostname = new URL(clean).hostname;
+    } catch {
+      setUrlCheckMsg('error', '⚠ Invalid URL — please include https:// and a valid hostname. <a id="url-save-anyway">Save anyway</a>');
+      document.getElementById('url-save-anyway').addEventListener('click', () => commitUrl(true));
+      return;
+    }
+
+    $('btn-save-url').disabled = true;
+    setUrlCheckMsg('checking', `⟳ Resolving <strong>${hostname}</strong>…`);
+
+    let result;
+    try {
+      result = await checkDNS(hostname);
+    } catch {
+      // Both resolvers failed — likely a network problem reaching DoH servers
+      $('btn-save-url').disabled = false;
+      setUrlCheckMsg('error',
+        `⚠ Could not reach DNS resolvers — check your internet connection. ` +
+        `<a id="url-save-anyway">Save anyway</a>`
+      );
+      document.getElementById('url-save-anyway').addEventListener('click', () => commitUrl(true));
+      return;
+    }
+
+    $('btn-save-url').disabled = false;
+
+    if (!result.resolved) {
+      setUrlCheckMsg('error',
+        `⚠ Hostname <strong>${hostname}</strong> could not be resolved (NXDOMAIN via ${result.source}). ` +
+        `<a id="url-save-anyway">Save anyway</a>`
+      );
+      document.getElementById('url-save-anyway').addEventListener('click', () => commitUrl(true));
+      return;
+    }
+
+    setUrlCheckMsg('ok', `✓ <strong>${hostname}</strong> resolved via ${result.source}`);
+    await new Promise(r => setTimeout(r, 700));
+  }
+
   ELEVATION_BASE = clean;
   saveUrl(clean);
   refreshUrlDisplay();
+  setUrlCheckMsg(null);
   hideUrlEdit();
 }
 
 $('btn-edit-url').addEventListener('click', showUrlEdit);
 
-$('btn-save-url').addEventListener('click', commitUrl);
+$('btn-save-url').addEventListener('click', () => commitUrl());
 
-$('btn-cancel-url').addEventListener('click', hideUrlEdit);
+$('btn-cancel-url').addEventListener('click', () => { setUrlCheckMsg(null); hideUrlEdit(); });
 
 $('url-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') commitUrl();
-  if (e.key === 'Escape') hideUrlEdit();
+  if (e.key === 'Escape') { setUrlCheckMsg(null); hideUrlEdit(); }
 });
 
 // Initialise display on load
