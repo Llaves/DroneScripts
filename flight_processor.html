@@ -71,6 +71,8 @@ header p{font-size:12px;color:var(--text-dim);letter-spacing:.5px;margin-top:2px
 .btn-outline{border-color:var(--border);color:var(--text-dim);}
 .btn-outline:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
 .btn:disabled{opacity:.3;cursor:not-allowed;}
+.btn-reset-zone{border-color:var(--border);color:var(--text-dim);writing-mode:vertical-rl;text-orientation:mixed;padding:16px 12px;align-self:stretch;height:auto;justify-content:center;}
+.btn-reset-zone:hover:not(:disabled){border-color:var(--red);color:var(--red);}
 .progress-section{display:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:18px 22px;box-shadow:var(--shadow);transition:background .25s,border-color .25s;}
 .progress-section.visible{display:block;}
 .progress-header{display:flex;justify-content:space-between;margin-bottom:10px;}
@@ -86,6 +88,14 @@ header p{font-size:12px;color:var(--text-dim);letter-spacing:.5px;margin-top:2px
 .chart-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;}
 .chart-title{font-family:'Space Mono',monospace;font-size:12px;color:var(--text);letter-spacing:2px;text-transform:uppercase;}
 .chart-subtitle{font-size:12px;color:var(--text-dim);margin-top:4px;}
+.xaxis-toggle{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px 22px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);transition:background .25s,border-color .25s;}
+.xaxis-label{font-family:'Space Mono',monospace;font-size:11px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;white-space:nowrap;}
+.xaxis-pills{display:flex;gap:0;border:1px solid var(--border);border-radius:4px;overflow:hidden;}
+.xaxis-pill{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;padding:8px 18px;border:none;background:transparent;color:var(--text-dim);cursor:pointer;transition:all .15s;white-space:nowrap;}
+.xaxis-pill:not(:last-child){border-right:1px solid var(--border);}
+.xaxis-pill:hover:not(.active){background:var(--surface2);color:var(--text);}
+.xaxis-pill.active{background:var(--accent);color:#fff;}
+[data-theme="light"] .xaxis-pill.active{color:#fff;}
 .chart-container{position:relative;height:280px;}
 </style>
 </head>
@@ -104,12 +114,15 @@ header p{font-size:12px;color:var(--text-dim);letter-spacing:.5px;margin-top:2px
   </div>
 </header>
 <div class="main">
-  <div class="upload-zone" id="upload-zone">
-    <input type="file" id="file-input" accept=".csv">
-    <div class="upload-icon" id="upload-icon">↑</div>
-    <div class="upload-label"><strong>Drop CSV file here</strong></div>
-    <div class="upload-sub">or click to browse</div>
-    <div class="upload-filename" id="upload-filename"></div>
+  <div style="display:flex;gap:12px;align-items:stretch;">
+    <div class="upload-zone" id="upload-zone" style="flex:1;">
+      <input type="file" id="file-input" accept=".csv">
+      <div class="upload-icon" id="upload-icon">↑</div>
+      <div class="upload-label"><strong>Drop CSV file here</strong></div>
+      <div class="upload-sub">or click to browse</div>
+      <div class="upload-filename" id="upload-filename"></div>
+    </div>
+    <button class="btn btn-outline btn-reset-zone" id="btn-reset" title="Reset — restore page to original state" disabled>↺ Reset All</button>
   </div>
   <div class="controls">
     <div class="field">
@@ -133,6 +146,13 @@ header p{font-size:12px;color:var(--text-dim);letter-spacing:.5px;margin-top:2px
     </div>
     <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
     <div class="log-lines" id="log-lines"></div>
+  </div>
+  <div class="xaxis-toggle" id="xaxis-toggle" style="display:none;">
+    <span class="xaxis-label">X-Axis</span>
+    <div class="xaxis-pills">
+      <button class="xaxis-pill active" id="pill-dist" data-axis="dist">Distance Along Path</button>
+      <button class="xaxis-pill" id="pill-time" data-axis="time">Time (seconds)</button>
+    </div>
   </div>
   <div class="chart-section" id="chart1-section">
     <div class="chart-header">
@@ -199,6 +219,7 @@ function updateChartTheme(chart) {
 let csvFile = null, processedData = null, chart1 = null, chart2 = null;
 let healthStatus = null;   // null = pending, 'ok' = ready, 'error' = failed
 let healthCallTime = null; // timestamp when /health was called
+let xAxisMode = 'dist';    // 'dist' | 'time'
 
 const ELEVATION_BASE = 'https://creative-melisandra-droneteam-fb5207f5.koyeb.app';
 
@@ -260,9 +281,55 @@ function handleFile(f) {
   pingHealthEndpoint(); // fire immediately — don't wait
   ['btn-csv','btn-kml','btn-dl-chart1','btn-dl-chart2'].forEach(id => $(id).disabled = true);
   $('chart1-section').classList.remove('visible'); $('chart2-section').classList.remove('visible');
+  $('xaxis-toggle').style.display = 'none';
   clearLog(); $('progress-section').classList.remove('visible');
+  // Enable the reset button now that a file has been loaded
+  $('btn-reset').disabled = false;
   setTimeout(processFile, 300);
 }
+
+// ── Reset ────────────────────────────────────────────────────────────────
+function resetAll() {
+  // Destroy any active charts
+  if (chart1) { chart1.destroy(); chart1 = null; }
+  if (chart2) { chart2.destroy(); chart2 = null; }
+  // Clear all state
+  csvFile = null; processedData = null; healthStatus = null; healthCallTime = null;
+  // Reset upload zone to original appearance
+  uz.classList.remove('has-file', 'drag-over');
+  $('upload-icon').textContent = '↑';
+  $('upload-filename').textContent = '';
+  fi.value = '';
+  // Reset controls to defaults
+  $('kml-name').value = 'Flight Path';
+  $('dataset').value = 'ned10m';
+  // Disable all action buttons
+  ['btn-csv','btn-kml','btn-dl-chart1','btn-dl-chart2'].forEach(id => $(id).disabled = true);
+  // Hide progress bar and charts
+  $('progress-section').classList.remove('visible');
+  $('chart1-section').classList.remove('visible');
+  $('chart2-section').classList.remove('visible');
+  $('xaxis-toggle').style.display = 'none';
+  // Reset x-axis mode to distance
+  xAxisMode = 'dist';
+  document.querySelectorAll('.xaxis-pill').forEach(p => p.classList.toggle('active', p.dataset.axis === 'dist'));
+  clearLog(); setProgress(0);
+  // Disable reset button until a new file is loaded
+  $('btn-reset').disabled = true;
+}
+
+// ── X-axis toggle ─────────────────────────────────────────────────────────
+document.querySelectorAll('.xaxis-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    const axis = pill.dataset.axis;
+    if (axis === xAxisMode) return;
+    xAxisMode = axis;
+    document.querySelectorAll('.xaxis-pill').forEach(p => p.classList.toggle('active', p.dataset.axis === axis));
+    if (processedData) renderCharts(processedData.rows, processedData.headers);
+  });
+});
+
+$('btn-reset').addEventListener('click', resetAll);
 
 function log(msg, cls='') {
   const d = document.createElement('div'); if (cls) d.className = cls;
@@ -412,11 +479,15 @@ function makeChartOpts(xL, yL) {
       tooltip: {
         backgroundColor: c.ttBg, borderColor: c.ttBorder, borderWidth: 1,
         titleColor: c.ttTitle, bodyColor: c.ttBody,
-        titleFont: { family:'Space Mono', size:11 }, bodyFont: { family:'Barlow', size:12 }
+        titleFont: { family:'Space Mono', size:11 }, bodyFont: { family:'Barlow', size:12 },
+        callbacks: {
+          title: items => xL + ': ' + items[0].parsed.x.toFixed(1)
+        }
       }
     },
     scales: {
       x: {
+        type: 'linear',
         ticks: { color:c.dim, font:{family:'Space Mono',size:9}, maxTicksLimit:10 },
         grid:  { color:c.grid },
         title: { display:true, text:xL, color:c.label, font:{family:'Barlow',size:12} }
@@ -431,33 +502,57 @@ function makeChartOpts(xL, yL) {
 }
 
 function renderCharts(rows, headers) {
-  const dist = rows.map(r => Math.round((r['Distance Along Path'] || 0) * 10) / 10);
+  const useTime = xAxisMode === 'time';
+  const xLabel  = useTime ? 'Time (s)' : 'Distance Along Path (m)';
+  const xWord   = useTime ? 'Time' : 'Distance Along Path';
+
+  // Use {x, y} point objects on a linear axis so Chart.js spaces points
+  // proportionally to their actual numeric x value rather than treating
+  // each row as an equal-width category slot.
+  // Both fields come directly from the phase2 output rows:
+  //   'time_s'              — kept from col 0 by phase1
+  //   'Distance Along Path' — computed by phase1 (0.1 * speed_ms accumulated)
+  const xVal = r => useTime
+    ? parseFloat(r['time_s']) || 0
+    : parseFloat(r['Distance Along Path']) || 0;
+
+  const pts = key => rows.map(r => ({ x: xVal(r), y: r[key] ?? null }));
+
   if (chart1) chart1.destroy();
   chart1 = new Chart($('chart1').getContext('2d'), {
-    type: 'line',
-    data: { labels: dist, datasets: [
-      { label:'Ground Elevation (m)', data:rows.map(r=>r.GndElev),
+    type: 'scatter',
+    data: { datasets: [
+      { label:'Ground Elevation (m)', data: pts('GndElev'),
         borderColor:'#10b981', backgroundColor:'rgba(16,185,129,.1)',
-        borderWidth:2, pointRadius:0, fill:true, tension:.3 },
-      { label:'Flight Altitude (m)', data:rows.map(r=>r.FlightAltitude),
+        borderWidth:2, pointRadius:0, fill:true, tension:.3, showLine:true },
+      { label:'Flight Altitude (m)', data: pts('FlightAltitude'),
         borderColor: isDark?'#00d4ff':'#0080aa',
         backgroundColor: isDark?'rgba(0,212,255,.04)':'rgba(0,128,170,.04)',
-        borderWidth:2, pointRadius:0, fill:false, tension:.3 }
+        borderWidth:2, pointRadius:0, fill:false, tension:.3, showLine:true }
     ]},
-    options: makeChartOpts('Distance Along Path (m)', 'Altitude (m)')
+    options: makeChartOpts(xLabel, 'Altitude (m)')
   });
   if (chart2) chart2.destroy();
   chart2 = new Chart($('chart2').getContext('2d'), {
-    type: 'line',
-    data: { labels: dist, datasets: [
-      { label:'Height Above Ground (m)', data:rows.map(r=>r.HeightAboveGround),
+    type: 'scatter',
+    data: { datasets: [
+      { label:'Height Above Ground (m)', data: pts('HeightAboveGround'),
         borderColor:'#ff6b35', backgroundColor:'rgba(255,107,53,.1)',
-        borderWidth:2, pointRadius:0, fill:true, tension:.3 }
+        borderWidth:2, pointRadius:0, fill:true, tension:.3, showLine:true }
     ]},
-    options: makeChartOpts('Distance Along Path (m)', 'Height (m)')
+    options: makeChartOpts(xLabel, 'Height (m)')
   });
+
+  // Update subtitles to match the active x-axis
+  document.querySelector('#chart1-section .chart-subtitle').textContent =
+    `Ground Elevation & Flight Altitude vs ${xWord}`;
+  document.querySelector('#chart2-section .chart-subtitle').textContent =
+    `Height Above Ground vs ${xWord}`;
+
   $('chart1-section').classList.add('visible'); $('chart2-section').classList.add('visible');
   $('btn-dl-chart1').disabled = false; $('btn-dl-chart2').disabled = false;
+  // Show the x-axis toggle above the charts
+  $('xaxis-toggle').style.display = 'flex';
 }
 
 // ── Export helpers ────────────────────────────────────────────────────────
@@ -499,6 +594,17 @@ function dlCanvas(id, filename) {
   ctx.fillRect(0, 0, t.width, t.height); ctx.drawImage(c, 0, 0);
   const a = document.createElement('a'); a.href = t.toDataURL('image/png'); a.download = filename; a.click();
 }
+
+// ── X-axis toggle ─────────────────────────────────────────────────────────
+document.querySelectorAll('.xaxis-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    const axis = pill.dataset.axis;
+    if (axis === xAxisMode) return;
+    xAxisMode = axis;
+    document.querySelectorAll('.xaxis-pill').forEach(p => p.classList.toggle('active', p.dataset.axis === axis));
+    if (processedData) renderCharts(processedData.rows, processedData.headers);
+  });
+});
 
 $('btn-csv').addEventListener('click', () => {
   if (!processedData) return;
