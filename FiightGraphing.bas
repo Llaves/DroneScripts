@@ -70,11 +70,6 @@ Sub PlotFlights()
     End With
     
         
-    With chartObj.Chart.SeriesCollection(2)
-        .Smooth = True
-        .MarkerStyle = xlMarkerStyleNone  ' Remove markers for cleaner look (optional)
-    End With
-    
     
     ' create flight elevation profile
 
@@ -118,7 +113,101 @@ Sub PlotFlights()
         .MarkerStyle = xlMarkerStyleNone  ' Remove markers for cleaner look (optional)
     End With
     
+    ' Create a new chart
+    Set chartObj = ws.ChartObjects.Add(Left:=500, Width:=750, Top:=1150, Height:=500)
+    
+    ' Add the first series (G as Y, A as X)
+    With chartObj.Chart
+        ' Set chart type to XY Scatter with smooth lines
+        .ChartType = xlXYScatterSmooth
+        
+        ' Add first series
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(1)
+            .Name = "Ground Elevation"
+            .XValues = ws.Range("A2:A" & lastRow)  ' X values from column A
+            .Values = ws.Range("G2:G" & lastRow)   ' Y values from column G
+        End With
+        
+        ' Add second series (I as Y, A as X)
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(2)
+            .Name = "Flight Elevation"
+            .XValues = ws.Range("A2:A" & lastRow)  ' X values from column A
+            .Values = ws.Range("I2:I" & lastRow)   ' Y values from column I
+        End With
+        
+        ' Customize chart appearance (optional)
+        .HasTitle = True
+        .ChartTitle.Text = "Flight Path over Terrain"
+        .Axes(xlCategory).MinimumScale = 0
+        
+        ' Label axes
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Flight Time in seconds"
+        
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Elevation in meters"
+        
+        ' Add legend
+        .HasLegend = True
+        .Legend.Position = xlLegendPositionBottom
+    End With
+    
+    ' Optional: Format the lines to make them smooth (though this is already set by chart type)
+    With chartObj.Chart.SeriesCollection(1)
+        .Smooth = True
+        .MarkerStyle = xlMarkerStyleNone  ' Remove markers for cleaner look (optional)
+    End With
+    
+    With chartObj.Chart.SeriesCollection(2)
+        .Smooth = True
+        .MarkerStyle = xlMarkerStyleNone  ' Remove markers for cleaner look (optional)
+    End With
+    
+    
+    
+    ' create flight elevation profile
 
+    Set chartObj = ws.ChartObjects.Add(Left:=500, Width:=750, Top:=1700, Height:=500)
+    
+    ' Add the first series (J as Y, A as X)
+    With chartObj.Chart
+        ' Set chart type to XY Scatter with smooth lines
+        .ChartType = xlXYScatterSmooth
+        
+        ' Add first series
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(1)
+            .Name = "Height Above Ground Level"
+            .XValues = ws.Range("A2:A" & lastRow)  ' X values from column A
+            .Values = ws.Range("J2:J" & lastRow)   ' Y values from column J
+        End With
+        
+       
+        ' Customize chart appearance (optional)
+        .HasTitle = True
+        .ChartTitle.Text = "Height Above Ground Level"
+        .Axes(xlCategory).MinimumScale = 0
+        .Axes(xlValue).MinimumScale = 0
+        
+        ' Label axes
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Flight Time in Seconds"
+        
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Elevation in meters"
+        
+        ' Add legend
+        .HasLegend = True
+        .Legend.Position = xlLegendPositionBottom
+    End With
+    
+    ' Optional: Format the lines to make them smooth (though this is already set by chart type)
+    With chartObj.Chart.SeriesCollection(1)
+        .Smooth = True
+        .MarkerStyle = xlMarkerStyleNone  ' Remove markers for cleaner look (optional)
+    End With
 
  
     
@@ -126,3 +215,4 @@ Sub PlotFlights()
     MsgBox "Dismiss this box to see graphs", vbInformation
     
 End Sub
+
