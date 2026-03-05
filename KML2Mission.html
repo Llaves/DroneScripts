@@ -1,0 +1,1821 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KML2Mission</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root, [data-theme="light"] {
+    --bg:          #f0f2f5;
+    --surface:     #ffffff;
+    --surface2:    #e8ebf0;
+    --border:      #d0d5df;
+    --accent:      #00916e;
+    --accent-glow: rgba(0,145,110,0.15);
+    --accent2:     #0055cc;
+    --text:        #1a1d26;
+    --muted:       #7a8099;
+    --danger:      #cc2244;
+    --success:     #00916e;
+    --grid-line:   rgba(0,145,110,0.06);
+    --shadow:      0 2px 16px rgba(0,0,0,0.08);
+  }
+
+  [data-theme="dark"] {
+    --bg:          #0a0c10;
+    --surface:     #111318;
+    --surface2:    #181c24;
+    --border:      #232836;
+    --accent:      #00e5a0;
+    --accent-glow: rgba(0,229,160,0.15);
+    --accent2:     #4499ff;
+    --text:        #e8eaf0;
+    --muted:       #5a6175;
+    --danger:      #ff4d6d;
+    --success:     #00e5a0;
+    --grid-line:   rgba(0,229,160,0.03);
+    --shadow:      0 2px 16px rgba(0,0,0,0.4);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    overflow-x: hidden;
+    transition: background 0.3s, color 0.3s;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 640px;
+  }
+
+  /* ── Header ──────────────────────────────────────────────────────────────── */
+  .header-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    gap: 1rem;
+  }
+
+  .header-text { flex: 1; }
+
+  .eyebrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
+
+  h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    transition: color 0.3s;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .subtitle {
+    margin-top: 0.6rem;
+    font-size: 0.88rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── Theme toggle ────────────────────────────────────────────────────────── */
+  .theme-toggle {
+    flex-shrink: 0;
+    margin-top: 0.25rem;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.15s;
+    box-shadow: var(--shadow);
+  }
+
+  .theme-toggle:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+    transform: scale(1.08);
+  }
+
+  .theme-toggle svg {
+    width: 17px; height: 17px;
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: stroke 0.25s;
+    display: none;
+  }
+
+  .theme-toggle:hover svg { stroke: var(--accent); }
+  [data-theme="light"] .theme-toggle .icon-moon { display: block; }
+  [data-theme="dark"]  .theme-toggle .icon-sun  { display: block; }
+
+  /* ── Phase divider ───────────────────────────────────────────────────────── */
+  .phase-divider {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 2rem 0 1.5rem;
+  }
+
+  .phase-divider::before,
+  .phase-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .phase-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent2);
+    white-space: nowrap;
+    padding: 0.25rem 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--accent2) 30%, transparent);
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--accent2) 6%, transparent);
+  }
+
+  /* ── Proxy URL panel ─────────────────────────────────────────────────────── */
+  .proxy-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1.1rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.5rem;
+    transition: background 0.3s, border-color 0.3s;
+  }
+
+  .proxy-panel-view {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .proxy-panel-edit {
+    display: none;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .proxy-panel-edit.open { display: flex; }
+
+  .proxy-panel-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .proxy-panel-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .proxy-panel-value.unset { color: var(--danger); font-style: italic; }
+
+  .proxy-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .proxy-edit-row input[type="text"] {
+    flex: 1;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    padding: 0.6rem 0.85rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .proxy-edit-row input[type="text"]:focus { border-color: var(--accent2); }
+
+  .proxy-dataset-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .proxy-dataset-row select {
+    flex: 1;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    padding: 0.6rem 0.85rem;
+    outline: none;
+    transition: border-color 0.2s, background 0.3s;
+    cursor: pointer;
+  }
+
+  .proxy-dataset-row select:focus { border-color: var(--accent2); }
+
+  .url-check-msg {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid;
+    display: none;
+  }
+
+  .url-check-msg.visible  { display: block; }
+  .url-check-msg.checking { color: var(--muted);   border-color: var(--border);  background: var(--surface2); }
+  .url-check-msg.ok       { color: var(--success); border-color: var(--success); background: color-mix(in srgb, var(--success) 8%, transparent); }
+  .url-check-msg.error    { color: var(--danger);  border-color: var(--danger);  background: color-mix(in srgb, var(--danger) 8%, transparent); }
+  .url-check-msg.error a  { color: var(--danger); font-weight: 700; cursor: pointer; text-decoration: underline; }
+
+  /* ── Small buttons ───────────────────────────────────────────────────────── */
+  .btn-sm {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.45rem 0.85rem;
+    border-radius: 6px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.2s, color 0.2s;
+    flex-shrink: 0;
+  }
+
+  .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-sm.accent {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  .btn-sm.accent:hover {
+    background: var(--accent2);
+    color: #fff;
+  }
+
+  .btn-sm:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+  /* ── Drop zone (large) ───────────────────────────────────────────────────── */
+  .dropzone {
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 2.5rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  .dropzone::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, var(--accent-glow) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+
+  .dropzone:hover, .dropzone.drag-over {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow);
+  }
+
+  .dropzone:hover::after, .dropzone.drag-over::after { opacity: 1; }
+  .dropzone.drag-over   { background: var(--surface2); }
+  .dropzone.file-loaded { background: var(--surface2); border-color: var(--accent); border-style: solid; }
+
+  .drop-icon { width: 48px; height: 48px; margin: 0 auto 1rem; opacity: 0.55; }
+  .drop-icon svg { width: 100%; height: 100%; }
+
+  .drop-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  .drop-label strong { color: var(--accent); font-weight: 700; }
+  .drop-hint { margin-top: 0.4rem; font-size: 0.75rem; color: var(--muted); opacity: 0.6; }
+
+  /* ── Drop zone (compact) ─────────────────────────────────────────────────── */
+  .dropzone-sm {
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 1.1rem 1.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  .dropzone-sm::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 0% 50%, var(--accent-glow) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+
+  .dropzone-sm:hover, .dropzone-sm.drag-over {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow);
+  }
+
+  .dropzone-sm:hover::after, .dropzone-sm.drag-over::after { opacity: 1; }
+  .dropzone-sm.drag-over   { background: var(--surface2); }
+  .dropzone-sm.file-loaded { background: var(--surface2); border-color: var(--accent); border-style: solid; }
+
+  .dropzone-sm-icon { width: 32px; height: 32px; flex-shrink: 0; opacity: 0.55; }
+  .dropzone-sm-icon svg { width: 100%; height: 100%; }
+  .dropzone-sm-text { flex: 1; }
+
+  .dropzone-sm-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .dropzone-sm-label strong { color: var(--accent); }
+
+  .dropzone-sm-hint {
+    font-size: 0.7rem;
+    color: var(--muted);
+    opacity: 0.6;
+    margin-top: 0.15rem;
+  }
+
+  /* Overlay file inputs are transparent and positioned absolute inside dropzones */
+
+  /* ── File info bar ───────────────────────────────────────────────────────── */
+  .file-info {
+    display: none;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.9rem 1.1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 1rem;
+    box-shadow: var(--shadow);
+    animation: slideIn 0.3s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .file-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .file-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--text);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .file-meta { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+
+  /* ── Controls / inputs ───────────────────────────────────────────────────── */
+  .controls { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
+
+  label.field-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .input-row { display: flex; gap: 0.75rem; align-items: stretch; }
+
+  input[type="number"] {
+    flex: 1;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 1rem;
+    padding: 0.75rem 1rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.3s, color 0.3s;
+    -moz-appearance: textfield;
+    appearance: textfield;   }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+  input[type="number"]:focus {
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 3px rgba(0,85,204,0.12);
+  }
+
+  .unit-badge {
+    padding: 0.75rem 1rem;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    transition: background 0.3s, border-color 0.3s;
+  }
+
+  /* ── Stats cards ─────────────────────────────────────────────────────────── */
+  .stats {
+    display: none;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    animation: slideIn 0.4s ease;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.9rem;
+    text-align: center;
+    box-shadow: var(--shadow);
+    transition: background 0.3s, border-color 0.3s;
+  }
+
+  .stat-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .stat-label {
+    font-size: 0.68rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 0.25rem;
+  }
+
+  /* ── Process button ──────────────────────────────────────────────────────── */
+  .btn-process {
+    margin-top: 1.5rem;
+    width: 100%;
+    padding: 0.9rem 1.5rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: filter 0.2s, transform 0.15s, box-shadow 0.2s;
+  }
+
+  [data-theme="dark"] .btn-process { color: #000; }
+
+  .btn-process:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+    filter: none;
+  }
+
+  .btn-process:not(:disabled):hover {
+    filter: brightness(1.1);
+    box-shadow: 0 4px 20px var(--accent-glow);
+    transform: translateY(-1px);
+  }
+
+  .btn-process:not(:disabled):active { transform: translateY(0); }
+
+  /* ── Elevation section ───────────────────────────────────────────────────── */
+  .elev-section {
+    display: none;
+    margin-top: 1.25rem;
+    animation: slideIn 0.35s ease;
+  }
+
+  .elev-section.visible { display: block; }
+
+  /* Fetch elevation button — full width, accent2 style */
+  .btn-fetch-elev {
+    width: 100%;
+    padding: 0.85rem 1.5rem;
+    background: transparent;
+    color: var(--accent2);
+    border: 1.5px solid var(--accent2);
+    border-radius: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+  }
+
+  .btn-fetch-elev:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent2) 8%, transparent);
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--accent2) 20%, transparent);
+    transform: translateY(-1px);
+  }
+
+  .btn-fetch-elev:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-fetch-elev svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  /* Progress bar */
+  .progress-wrap {
+    display: none;
+    margin-top: 1rem;
+    animation: slideIn 0.3s ease;
+  }
+
+  .progress-wrap.visible { display: block; }
+
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .progress-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent2);
+  }
+
+  .progress-pct {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+
+  .progress-track {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    height: 5px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+  }
+
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent2), color-mix(in srgb, var(--accent2) 60%, var(--accent)));
+    border-radius: 3px;
+    transition: width 0.4s ease;
+  }
+
+  .log-lines {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--muted);
+    line-height: 1.8;
+    max-height: 130px;
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+  }
+
+  .log-ok   { color: var(--success); }
+  .log-err  { color: var(--danger); }
+  .log-info { color: var(--accent2); }
+
+  /* ── Elevation ready banner ──────────────────────────────────────────────── */
+  .ready-banner {
+    display: none;
+    margin-top: 1rem;
+    padding: 0.85rem 1.25rem;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border: 1.5px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    align-items: center;
+    gap: 0.65rem;
+    animation: slideIn 0.35s ease;
+  }
+
+  .ready-banner.visible { display: flex; }
+  .ready-banner svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  /* ── Mission param pair ──────────────────────────────────────────────────── */
+  .param-pair {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+
+  .param-field {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .param-sublabel {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* ── Error ───────────────────────────────────────────────────────────────── */
+  .error-msg {
+    display: none;
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: color-mix(in srgb, var(--danger) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+    border-radius: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--danger);
+  }
+
+  .error-msg.visible { display: block; animation: slideIn 0.2s ease; }
+
+  .dropzone.dropzone-locked {
+    opacity: 0.45;
+    pointer-events: none;
+    cursor: not-allowed;
+  }
+
+  .dropzone.dropzone-locked .drop-label strong { color: var(--muted); }
+
+  /* ── Thinning section ───────────────────────────────────────────────────── */
+  .thin-section {
+    display: none;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    margin-top: 0.75rem;
+  }
+  .thin-section.visible { display: flex; }
+
+  .thin-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-end;
+  }
+
+  .btn-thin {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: var(--surface);
+    border: 1.5px solid var(--accent2);
+    border-radius: 8px;
+    color: var(--accent2);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: background 0.2s, color 0.2s;
+  }
+  .btn-thin:hover { background: var(--accent2); color: #fff; }
+  .btn-thin svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  .thin-result {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+    min-height: 1.2em;
+  }
+  .thin-result.ok  { color: var(--accent); }
+  .thin-result.err { color: var(--danger); }
+
+  /* ── Export section ──────────────────────────────────────────────────────── */
+  .export-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .export-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-end;
+  }
+
+  .btn-export {
+    width: 100%;
+    padding: 0.9rem 1.5rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    transition: filter 0.2s, transform 0.15s, box-shadow 0.2s;
+  }
+
+  [data-theme="dark"] .btn-export { color: #000; }
+
+  .btn-export:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+    filter: none;
+  }
+
+  .btn-export:not(:disabled):hover {
+    filter: brightness(1.1);
+    box-shadow: 0 4px 20px var(--accent-glow);
+    transform: translateY(-1px);
+  }
+
+  .btn-export svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  footer {
+    margin-top: 2.5rem;
+    font-size: 0.7rem;
+    color: var(--muted);
+    opacity: 0.45;
+    font-family: 'Space Mono', monospace;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <div class="header-row">
+    <div class="header-text">
+      <div class="eyebrow">// Mission Planning</div>
+      <h1>KML<span>2Mission</span></h1>
+      <p class="subtitle">Interpolate a KML path into evenly-spaced waypoints, fetch ground elevations, then configure mission parameters for export.</p>
+    </div>
+    <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode">
+      <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="5"/>
+        <line x1="12" y1="1"  x2="12" y2="3"/>  <line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1" y1="12" x2="3" y2="12"/>  <line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- ── Elevation Proxy URL panel ──────────────────────────────────────── -->
+  <div class="proxy-panel" id="proxy-panel">
+    <!-- View mode -->
+    <div class="proxy-panel-view" id="proxy-view">
+      <span class="proxy-panel-label">Elevation Proxy</span>
+      <span class="proxy-panel-value" id="proxy-display">Not set</span>
+      <button class="btn-sm" id="btn-edit-proxy">✎ Edit</button>
+    </div>
+    <!-- Edit mode -->
+    <div class="proxy-panel-edit" id="proxy-edit">
+      <div class="proxy-edit-row">
+        <span class="proxy-panel-label">Proxy URL</span>
+        <input type="text" id="proxy-url-input" placeholder="https://your-proxy.example.com" spellcheck="false" autocomplete="off">
+        <button class="btn-sm accent" id="btn-save-proxy">Save</button>
+        <button class="btn-sm" id="btn-cancel-proxy">Cancel</button>
+      </div>
+      <div class="proxy-dataset-row">
+        <span class="proxy-panel-label">Dataset</span>
+        <select id="dataset-select">
+          <option value="ned10m">NED 10m (US only)</option>
+          <option value="aster30m">ASTER 30m (global)</option>
+        </select>
+      </div>
+      <div class="url-check-msg" id="url-check-msg"></div>
+    </div>
+  </div>
+
+  <!-- ── Phase 1 divider ────────────────────────────────────────────────── -->
+  <div class="phase-divider" style="margin-top:0; margin-bottom:1.5rem">
+    <span class="phase-label">Phase 1 — Mission Config</span>
+  </div>
+
+  <!-- Mission Start KML -->
+  <label class="field-label" style="display:block; margin-bottom:0.5rem">Mission Start KML</label>
+  <div class="dropzone-sm" id="mission-dropzone">
+    <input type="file" id="mission-start-input" accept=".kml,application/vnd.google-earth.kml+xml" style="display:none">
+    <div class="dropzone-sm-icon">
+      <svg viewBox="0 0 48 48" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--accent)">
+        <path d="M24 4l6 10h10l-8 8 3 11-11-6-11 6 3-11-8-8h10z"/>
+      </svg>
+    </div>
+    <div class="dropzone-sm-text">
+      <div class="dropzone-sm-label"><strong>Drop Mission Start KML</strong></div>
+      <div class="dropzone-sm-hint" id="mission-hint">or click to browse</div>
+    </div>
+  </div>
+
+  <!-- Mission Altitude + Speed -->
+  <div class="param-pair">
+    <div class="param-field">
+      <span class="param-sublabel">Altitude Above Ground Level</span>
+      <div class="input-row">
+        <input type="number" id="alt-input" min="0" step="1" value="" placeholder="e.g. 30">
+        <div class="unit-badge">m</div>
+      </div>
+    </div>
+    <div class="param-field">
+      <span class="param-sublabel">Mission Speed</span>
+      <div class="input-row">
+        <input type="number" id="speed-input" min="0" step="0.5" value="" placeholder="e.g. 5">
+        <div class="unit-badge">m/s</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Curve Radius -->
+  <div class="param-pair" style="margin-top:0.75rem">
+    <div class="param-field">
+      <span class="param-sublabel">Turn Curve Radius</span>
+      <div class="input-row">
+        <input type="number" id="curve-radius" min="0" step="0.5" value="5">
+        <div class="unit-badge">m</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mission Name + Finish Action -->
+  <div class="param-pair" style="margin-top:0.75rem">
+    <div class="param-field" style="flex:2">
+      <span class="param-sublabel">Mission Name</span>
+      <div class="input-row">
+        <input type="text" id="mission-name" placeholder="e.g. Survey Flight 01"
+          style="flex:1;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-family:'Space Mono',monospace;font-size:0.85rem;padding:0.75rem 1rem;outline:none;transition:border-color 0.2s;">
+      </div>
+    </div>
+    <div class="param-field" style="flex:1">
+      <span class="param-sublabel">Finish Action</span>
+      <select id="finish-action"
+        style="width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-family:'Space Mono',monospace;font-size:0.75rem;padding:0.75rem 0.85rem;outline:none;cursor:pointer;transition:border-color 0.2s,background 0.3s;">
+        <option value="goHome">Return to Home</option>
+        <option value="noAction">Hover</option>
+        <option value="autoLand">Land</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ── Phase 2 divider ────────────────────────────────────────────────── -->
+  <div class="phase-divider">
+    <span class="phase-label">Phase 2 — Path Interpolation</span>
+  </div>
+
+  <!-- Path KML dropzone -->
+  <div class="dropzone dropzone-locked" id="dropzone">
+    <input type="file" id="file-input" accept=".kml,application/vnd.google-earth.kml+xml" style="display:none">
+    <div class="drop-icon">
+      <svg viewBox="0 0 48 48" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--accent)">
+        <rect x="8" y="6" width="32" height="36" rx="3"/>
+        <path d="M16 14h16M16 20h16M16 26h10"/>
+        <path d="M30 32l4 4 4-4"/><path d="M34 36v-8"/>
+      </svg>
+    </div>
+    <div class="drop-label"><strong>Drop Path KML here</strong></div>
+    <div class="drop-hint" id="dropzone-hint">Complete Phase 1 to unlock</div>
+  </div>
+
+  <div class="file-info" id="file-info">
+    <div class="file-dot"></div>
+    <div class="file-name" id="file-name">—</div>
+    <div class="file-meta" id="file-meta"></div>
+  </div>
+
+  <!-- Distance between points -->
+  <div class="controls">
+    <label class="field-label" for="dist-input">Distance between points</label>
+    <div class="input-row">
+      <input type="number" id="dist-input" min="0.1" step="1" value="5" placeholder="e.g. 5">
+      <div class="unit-badge">meters</div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats" id="stats">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-orig">—</div>
+      <div class="stat-label">Input pts</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-added">—</div>
+      <div class="stat-label">Interpolated</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-total">—</div>
+      <div class="stat-label">Total pts</div>
+    </div>
+  </div>
+
+  <!-- Interpolate button -->
+  <button class="btn-process" id="btn-process" disabled>Interpolate Points</button>
+
+  <div class="error-msg" id="error-msg"></div>
+
+  <!-- ── Elevation section (appears after interpolation) ────────────────── -->
+  <div class="elev-section" id="elev-section">
+    <!-- Fetch elevation button -->
+    <button class="btn-fetch-elev" id="btn-fetch-elev" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      Fetch Ground Elevations
+    </button>
+
+    <!-- Progress -->
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-header">
+        <span class="progress-title">Fetching elevations</span>
+        <span class="progress-pct" id="progress-pct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+      <div class="log-lines" id="log-lines"></div>
+    </div>
+
+    <!-- Thinning control (shown after elevations loaded) -->
+    <div class="thin-section" id="thin-section">
+      <div class="thin-row">
+        <div class="param-field" style="flex:1">
+          <span class="param-sublabel">AGL tolerance</span>
+          <div class="input-row">
+            <input type="number" id="thin-tolerance" min="1" max="100" step="1" value="20">
+            <div class="unit-badge">%</div>
+          </div>
+        </div>
+        <div class="param-field" style="flex:2; justify-content:flex-end; padding-top:1.4rem">
+          <button class="btn-thin" id="btn-thin">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="4" y1="6"  x2="20" y2="6"/>
+              <line x1="7" y1="12" x2="17" y2="12"/>
+              <line x1="10" y1="18" x2="14" y2="18"/>
+            </svg>
+            Thin Waypoints
+          </button>
+        </div>
+      </div>
+      <div class="thin-result" id="thin-result"></div>
+    </div>
+
+    <!-- Ready banner -->
+    <div class="ready-banner" id="ready-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+      Waypoint data complete — ready to export
+    </div>
+  </div>
+
+  <!-- ── Phase 3 divider ────────────────────────────────────────────────── -->
+  <div class="phase-divider">
+    <span class="phase-label">Phase 3 — Export Mission</span>
+  </div>
+
+  <div class="export-section">
+    <button class="btn-export" id="btn-export" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Download .kmz Mission
+    </button>
+  </div>
+
+  <footer>haversine interpolation &nbsp;·&nbsp; opentopodata elevation &nbsp;·&nbsp; no data leaves your browser</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// Theme toggle
+// ═══════════════════════════════════════════════════════════════════════════
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  const html = document.documentElement;
+  html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Proxy URL panel
+// ═══════════════════════════════════════════════════════════════════════════
+const STORAGE_KEY = 'kml2mission_elevation_base';
+const DATASET_KEY = 'kml2mission_dataset';
+
+function stripSlash(url) { return url.trim().replace(/\/+$/, ''); }
+
+function loadStoredUrl()     { try { return localStorage.getItem(STORAGE_KEY) || ''; } catch(e) { return ''; } }
+function saveProxyUrl(url)   { try { localStorage.setItem(STORAGE_KEY, url); } catch(e) {} }
+function loadStoredDataset() { try { return localStorage.getItem(DATASET_KEY) || 'ned10m'; } catch(e) { return 'ned10m'; } }
+function saveDataset(val)    { try { localStorage.setItem(DATASET_KEY, val); } catch(e) {} }
+
+let ELEVATION_BASE = loadStoredUrl();
+
+// Restore dataset selection
+document.getElementById('dataset-select').value = loadStoredDataset();
+
+function refreshProxyDisplay() {
+  const el = document.getElementById('proxy-display');
+  if (ELEVATION_BASE) {
+    el.textContent = ELEVATION_BASE;
+    el.classList.remove('unset');
+  } else {
+    el.textContent = 'Not set — click Edit to configure';
+    el.classList.add('unset');
+  }
+}
+
+function showProxyEdit() {
+  document.getElementById('proxy-view').style.display = 'none';
+  document.getElementById('proxy-edit').classList.add('open');
+  setCheckMsg(null);
+  const inp = document.getElementById('proxy-url-input');
+  inp.value = ELEVATION_BASE;
+  inp.focus();
+  inp.select();
+}
+
+function hideProxyEdit() {
+  document.getElementById('proxy-edit').classList.remove('open');
+  document.getElementById('proxy-view').style.display = 'flex';
+}
+
+function setCheckMsg(type, html) {
+  const el = document.getElementById('url-check-msg');
+  if (!type) { el.className = 'url-check-msg'; el.innerHTML = ''; return; }
+  el.className = 'url-check-msg visible ' + type;
+  el.innerHTML = html;
+}
+
+// DNS-over-HTTPS validation (same approach as flight_processor.html)
+async function queryDoH(resolverUrl, hostname) {
+  const resp = await fetch(`${resolverUrl}?name=${encodeURIComponent(hostname)}&type=A`, {
+    headers: { Accept: 'application/dns-json' },
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!resp.ok) throw new Error(`DoH HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data.Status === 3) return false;
+  if (data.Status !== 0) throw new Error(`DNS status ${data.Status}`);
+  return true;
+}
+
+async function checkDNS(hostname) {
+  return Promise.any([
+    { name: 'Google',     url: 'https://dns.google/resolve' },
+    { name: 'Cloudflare', url: 'https://cloudflare-dns.com/dns-query' }
+  ].map(r => queryDoH(r.url, hostname).then(resolved => ({ resolved, source: r.name }))));
+}
+
+async function commitProxyUrl(skipCheck = false) {
+  const raw = document.getElementById('proxy-url-input').value.trim();
+  if (!raw) { hideProxyEdit(); return; }
+  const clean = stripSlash(raw);
+
+  if (!skipCheck) {
+    let hostname;
+    try {
+      hostname = new URL(clean).hostname;
+    } catch {
+      setCheckMsg('error', '⚠ Invalid URL — include https:// and a valid hostname. <a id="save-anyway">Save anyway</a>');
+      document.getElementById('save-anyway').addEventListener('click', () => commitProxyUrl(true));
+      return;
+    }
+
+    const saveBtn = document.getElementById('btn-save-proxy');
+    saveBtn.disabled = true;
+    setCheckMsg('checking', `⟳ Resolving <strong>${hostname}</strong>…`);
+
+    let result;
+    try {
+      result = await checkDNS(hostname);
+    } catch {
+      saveBtn.disabled = false;
+      setCheckMsg('error', `⚠ Could not reach DNS resolvers. <a id="save-anyway">Save anyway</a>`);
+      document.getElementById('save-anyway').addEventListener('click', () => commitProxyUrl(true));
+      return;
+    }
+
+    saveBtn.disabled = false;
+
+    if (!result.resolved) {
+      setCheckMsg('error',
+        `⚠ <strong>${hostname}</strong> not found (NXDOMAIN via ${result.source}). ` +
+        `<a id="save-anyway">Save anyway</a>`
+      );
+      document.getElementById('save-anyway').addEventListener('click', () => commitProxyUrl(true));
+      return;
+    }
+
+    setCheckMsg('ok', `✓ <strong>${hostname}</strong> resolved via ${result.source}`);
+    await new Promise(r => setTimeout(r, 700));
+  }
+
+  ELEVATION_BASE = clean;
+  saveProxyUrl(clean);
+
+  // Also save dataset selection when committing URL
+  const ds = document.getElementById('dataset-select').value;
+  saveDataset(ds);
+
+  setCheckMsg(null);
+  hideProxyEdit();
+  refreshProxyDisplay();
+}
+
+document.getElementById('btn-edit-proxy').addEventListener('click', showProxyEdit);
+document.getElementById('btn-save-proxy').addEventListener('click', () => commitProxyUrl());
+document.getElementById('btn-cancel-proxy').addEventListener('click', () => { setCheckMsg(null); hideProxyEdit(); });
+document.getElementById('proxy-url-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter')  commitProxyUrl();
+  if (e.key === 'Escape') { setCheckMsg(null); hideProxyEdit(); }
+});
+document.getElementById('dataset-select').addEventListener('change', e => saveDataset(e.target.value));
+
+refreshProxyDisplay();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 1 completeness — unlock path dropzone when mission config is filled
+// ═══════════════════════════════════════════════════════════════════════════
+function isMissionConfigComplete() {
+  const alt   = parseFloat(document.getElementById('alt-input').value);
+  const speed = parseFloat(document.getElementById('speed-input').value);
+  const name  = document.getElementById('mission-name').value.trim();
+  return !isNaN(alt) && alt >= 0 && !isNaN(speed) && speed > 0 && name.length > 0;
+}
+
+function updateDropzoneLock() {
+  const dz   = document.getElementById('dropzone');
+  const hint = document.getElementById('dropzone-hint');
+  if (isMissionConfigComplete()) {
+    dz.classList.remove('dropzone-locked');
+    hint.textContent = 'or click to browse';
+  } else {
+    dz.classList.add('dropzone-locked');
+    hint.textContent = 'Complete Phase 1 to unlock';
+  }
+}
+
+['alt-input', 'speed-input', 'mission-name'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateDropzoneLock);
+});
+
+updateDropzoneLock();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Haversine & interpolation helpers
+// ═══════════════════════════════════════════════════════════════════════════
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371000, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.asin(Math.sqrt(a));
+}
+
+function interpolatePoints(lat1, lon1, lat2, lon2, n) {
+  const pts = [];
+  for (let i = 1; i <= n; i++) {
+    const t = i / (n + 1);
+    pts.push({ lat: lat1 + t*(lat2-lat1), lon: lon1 + t*(lon2-lon1), groundElevation: null, heightAboveLaunch: null });
+  }
+  return pts;
+}
+
+function parseCoords(str) {
+  return str.trim().split(/\s+/).map(token => {
+    const p = token.split(',');
+    return { lon: parseFloat(p[0]), lat: parseFloat(p[1]), alt: p.length > 2 ? parseFloat(p[2])||0 : 0 };
+  }).filter(p => !isNaN(p.lat) && !isNaN(p.lon));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Application state
+// ═══════════════════════════════════════════════════════════════════════════
+let kmlText             = null;   // raw KML text for path file
+let waypointData        = null;   // Array<{lat,lon,groundElevation,heightAboveLaunch}>
+let missionStartKmlText = null;   // raw KML text for mission start file
+let missionStartPoint   = null;   // {lat, lon, groundElevation} for the start point
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 1 — File loading
+// ═══════════════════════════════════════════════════════════════════════════
+const dropzone   = document.getElementById('dropzone');
+const fileInfo   = document.getElementById('file-info');
+const fileNameEl = document.getElementById('file-name');
+const fileMeta   = document.getElementById('file-meta');
+const distInput  = document.getElementById('dist-input');
+const btnProcess = document.getElementById('btn-process');
+const statsEl    = document.getElementById('stats');
+const statOrig   = document.getElementById('stat-orig');
+const statAdded  = document.getElementById('stat-added');
+const statTotal  = document.getElementById('stat-total');
+const errorMsg   = document.getElementById('error-msg');
+const elevSection  = document.getElementById('elev-section');
+const readyBanner  = document.getElementById('ready-banner');
+
+function loadFile(file) {
+  if (!file || !file.name.toLowerCase().endsWith('.kml')) { showError('Please provide a valid .kml file.'); return; }
+  hideError();
+  elevSection.classList.remove('visible');
+  readyBanner.classList.remove('visible');
+  statsEl.style.display = 'none';
+  waypointData = null;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    kmlText = e.target.result;
+    fileNameEl.textContent = file.name;
+    fileMeta.textContent   = (file.size / 1024).toFixed(1) + ' KB';
+    fileInfo.style.display = 'flex';
+    dropzone.classList.add('file-loaded');
+    btnProcess.disabled = false;
+  };
+  reader.readAsText(file);
+}
+
+const fileOverlay = document.getElementById('file-input');
+
+fileOverlay.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+dropzone.addEventListener('click',     () => fileOverlay.click());
+dropzone.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', ()  => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 1 — Interpolation → builds waypointData
+// ═══════════════════════════════════════════════════════════════════════════
+btnProcess.addEventListener('click', () => {
+  hideError();
+  elevSection.classList.remove('visible');
+  readyBanner.classList.remove('visible');
+  document.getElementById('thin-section').classList.remove('visible');
+  waypointData = null;
+
+  const dist = parseFloat(distInput.value);
+  if (!dist || dist <= 0) { showError('Please enter a positive distance value.'); return; }
+  if (!kmlText)           { showError('No KML file loaded.'); return; }
+
+  try {
+    const result = buildWaypoints(kmlText, dist);
+    waypointData = result.waypoints;
+
+    statOrig.textContent  = result.origPts.toLocaleString();
+    statAdded.textContent = result.addedPts.toLocaleString();
+    statTotal.textContent = result.totalPts.toLocaleString();
+    statsEl.style.display = 'grid';
+
+    elevSection.classList.add('visible');
+    updateFetchButtonState();
+    clearLog();
+    document.getElementById('progress-wrap').classList.remove('visible');
+  } catch (err) {
+    showError('Error processing KML: ' + err.message);
+  }
+});
+
+function buildWaypoints(xmlStr, distMeters) {
+  const parser = new DOMParser();
+  const doc    = parser.parseFromString(xmlStr, 'application/xml');
+  if (doc.querySelector('parseerror,parsererror')) throw new Error('Invalid XML / KML structure.');
+
+  const allWaypoints = [];
+  let origPts = 0, addedPts = 0;
+
+  doc.querySelectorAll('coordinates').forEach(el => {
+    const coords = parseCoords(el.textContent);
+    if (coords.length < 2) return;
+    origPts += coords.length;
+
+    for (let i = 0; i < coords.length; i++) {
+      allWaypoints.push({ lat: coords[i].lat, lon: coords[i].lon, groundElevation: null, heightAboveLaunch: null, isVertex: true });
+      if (i < coords.length - 1) {
+        const A = coords[i], B = coords[i+1];
+        const n = Math.floor(haversine(A.lat, A.lon, B.lat, B.lon) / distMeters);
+        if (n > 0) { interpolatePoints(A.lat, A.lon, B.lat, B.lon, n).forEach(p => allWaypoints.push(p)); addedPts += n; }
+      }
+    }
+  });
+
+  return { waypoints: allWaypoints, origPts, addedPts, totalPts: origPts + addedPts };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Elevation fetching
+// ═══════════════════════════════════════════════════════════════════════════
+const BATCH_SIZE = 100;
+const BATCH_DELAY_MS = 300;
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function updateFetchButtonState() {
+  const btn = document.getElementById('btn-fetch-elev');
+  btn.disabled = !(waypointData && waypointData.length > 0 && ELEVATION_BASE);
+}
+
+async function fetchElevationsBatch(locs) {
+  const dataset = document.getElementById('dataset-select').value;
+  const resp = await fetch(`${ELEVATION_BASE}/v1/${dataset}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ locations: locs.map(([lat,lon]) => `${lat},${lon}`).join('|') })
+  });
+  if (!resp.ok) { const t = await resp.text(); throw new Error(`HTTP ${resp.status}: ${t}`); }
+  const data = await resp.json();
+  if (data.status !== 'OK') throw new Error(`OpenTopoData: ${data.status}`);
+  return data.results.map(r => r.elevation);
+}
+
+function logLine(msg, cls = '') {
+  const el = document.getElementById('log-lines');
+  const d  = document.createElement('div');
+  if (cls) d.className = cls;
+  d.textContent = '> ' + msg;
+  el.appendChild(d);
+  el.scrollTop = 99999;
+}
+
+function clearLog() { document.getElementById('log-lines').innerHTML = ''; }
+
+function setProgress(pct) {
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent  = Math.round(pct) + '%';
+}
+
+document.getElementById('btn-fetch-elev').addEventListener('click', async () => {
+  if (!waypointData || !ELEVATION_BASE) return;
+
+  hideError();
+  readyBanner.classList.remove('visible');
+  document.getElementById('thin-section').classList.remove('visible');
+  document.getElementById('progress-wrap').classList.add('visible');
+  clearLog();
+  setProgress(0);
+  document.getElementById('btn-fetch-elev').disabled = true;
+
+  // Build combined list: waypoints + mission start point (if loaded)
+  // Mission start is appended at end and stripped out after
+  const msPoint = extractMissionStartPoint(missionStartKmlText);
+  const allPts  = waypointData.map(wp => [wp.lat, wp.lon]);
+  if (msPoint) { allPts.push([msPoint.lat, msPoint.lon]); }
+
+  const total   = allPts.length;
+  const totalB  = Math.ceil(total / BATCH_SIZE);
+  logLine(`${total} point${total !== 1 ? 's' : ''} to query (${waypointData.length} waypoints${msPoint ? ' + 1 mission start' : ''})`, 'log-info');
+
+  const allElevs = [];
+
+  try {
+    // Health check
+    logLine('Pinging elevation server…', 'log-info');
+    try {
+      const hr = await fetch(`${ELEVATION_BASE}/health`, { signal: AbortSignal.timeout(6000) });
+      const hd = await hr.json();
+      if (hd.status === 'ok') logLine('Elevation server healthy', 'log-ok');
+      else                    logLine('Server responded but status unexpected — proceeding', 'log-err');
+    } catch {
+      logLine('Health check failed — attempting elevation fetch anyway', 'log-err');
+    }
+
+    // Batch fetch
+    for (let b = 0; b < total; b += BATCH_SIZE) {
+      const batch = allPts.slice(b, b + BATCH_SIZE);
+      const bn    = Math.floor(b / BATCH_SIZE) + 1;
+      logLine(`Batch ${bn}/${totalB} — ${batch.length} pts`);
+      const elevs = await fetchElevationsBatch(batch);
+      allElevs.push(...elevs);
+      setProgress((allElevs.length / total) * 95);
+      if (b + BATCH_SIZE < total) await sleep(BATCH_DELAY_MS);
+    }
+
+    logLine(`Received ${allElevs.length} elevation value${allElevs.length !== 1 ? 's' : ''}`, 'log-ok');
+
+    // Write ground elevations into waypointData
+    for (let i = 0; i < waypointData.length; i++) {
+      waypointData[i].groundElevation = Math.round(allElevs[i] * 100) / 100;
+    }
+
+    // Mission start elevation (last element if it was appended)
+    if (msPoint) {
+      missionStartPoint = {
+        lat:             msPoint.lat,
+        lon:             msPoint.lon,
+        groundElevation: Math.round(allElevs[allElevs.length - 1] * 100) / 100
+      };
+      logLine(`Mission start elevation: ${missionStartPoint.groundElevation} m`, 'log-ok');
+    }
+
+    // Compute heightAboveLaunch for every waypoint:
+    //   heightAboveLaunch = groundElevation - launchElevation + missionAltAGL
+    const launchElev = missionStartPoint
+      ? missionStartPoint.groundElevation
+      : waypointData[0].groundElevation;
+    const altAGL = parseFloat(document.getElementById('alt-input').value) || 0;
+
+    for (let i = 0; i < waypointData.length; i++) {
+      waypointData[i].heightAboveLaunch =
+        Math.round((waypointData[i].groundElevation - launchElev + altAGL) * 100) / 100;
+    }
+
+    logLine(`Launch elevation: ${launchElev} m`, 'log-info');
+    logLine(`Mission AGL: ${altAGL} m  →  height above launch computed for ${waypointData.length} waypoints`, 'log-ok');
+
+    setProgress(100);
+    logLine('Waypoint data structure complete', 'log-ok');
+    window._originalWaypointData = null; // reset cache for thinning
+    document.getElementById('thin-section').classList.add('visible');
+    document.getElementById('thin-result').textContent = '';
+    document.getElementById('thin-result').className = 'thin-result';
+    document.getElementById('btn-thin').disabled = false;
+    readyBanner.classList.add('visible');
+    updateExportButtonState();
+
+  } catch (err) {
+    logLine('Error: ' + err.message, 'log-err');
+    showError('Elevation fetch failed: ' + err.message);
+  } finally {
+    updateFetchButtonState();
+  }
+});
+
+// Extract the first coordinate from a mission start KML string
+function extractMissionStartPoint(kmlStr) {
+  if (!kmlStr) return null;
+  try {
+    const doc    = new DOMParser().parseFromString(kmlStr, 'application/xml');
+    const coordEl = doc.querySelector('coordinates');
+    if (!coordEl) return null;
+    const first = parseCoords(coordEl.textContent)[0];
+    return first ? { lat: first.lat, lon: first.lon } : null;
+  } catch { return null; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 2 — Mission Start KML dropzone
+// ═══════════════════════════════════════════════════════════════════════════
+const missionDropzone = document.getElementById('mission-dropzone');
+const missionInput    = document.getElementById('mission-start-input');
+const missionHint     = document.getElementById('mission-hint');
+
+function loadMissionFile(file) {
+  if (!file || !file.name.toLowerCase().endsWith('.kml')) { showError('Mission Start: please provide a valid .kml file.'); return; }
+  hideError();
+  const reader = new FileReader();
+  reader.onload = e => {
+    missionStartKmlText = e.target.result;
+    missionStartPoint   = null;
+    missionHint.textContent = file.name + '  (' + (file.size / 1024).toFixed(1) + ' KB)';
+    missionDropzone.classList.add('file-loaded');
+  };
+  reader.readAsText(file);
+}
+
+missionInput.addEventListener('change',   e => { if (e.target.files[0]) loadMissionFile(e.target.files[0]); });
+missionDropzone.addEventListener('click', () => missionInput.click());
+missionDropzone.addEventListener('dragover',  e => { e.preventDefault(); missionDropzone.classList.add('drag-over'); });
+missionDropzone.addEventListener('dragleave', ()  => missionDropzone.classList.remove('drag-over'));
+missionDropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  missionDropzone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadMissionFile(e.dataTransfer.files[0]);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 3 — KMZ export
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateExportButtonState() {
+  const btn = document.getElementById('btn-export');
+  // Ready when all waypoints have heightAboveLaunch populated
+  const ready = waypointData &&
+    waypointData.length > 0 &&
+    waypointData[0].heightAboveLaunch !== null;
+  btn.disabled = !ready;
+}
+
+// Build the takeoff lat/lon from missionStartPoint or first waypoint
+function getTakeoffCoord() {
+  if (missionStartPoint) return { lat: missionStartPoint.lat, lon: missionStartPoint.lon };
+  return { lat: waypointData[0].lat, lon: waypointData[0].lon };
+}
+
+function buildTemplatKml(name, finishAction, speed) {
+  const lines = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.uav.com/wpmz/1.0.2">',
+    '  <Document>',
+    `    <wpml:author>KML2Mission</wpml:author>`,
+    `    <wpml:createTime>${Math.floor(Date.now()/1000)}</wpml:createTime>`,
+    `    <wpml:updateTime>${Math.floor(Date.now()/1000)}</wpml:updateTime>`,
+    '    <wpml:missionConfig>',
+    '      <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>',
+    `      <wpml:finishAction>${finishAction}</wpml:finishAction>`,
+    '      <wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>',
+    '      <wpml:executeRCLostAction>goBack</wpml:executeRCLostAction>',
+    `      <wpml:globalTransitionalSpeed>${speed.toFixed(2)}</wpml:globalTransitionalSpeed>`,
+    '      <wpml:droneInfo>',
+    '        <wpml:droneEnumValue>68</wpml:droneEnumValue>',
+    '        <wpml:droneSubEnumValue>0</wpml:droneSubEnumValue>',
+    '      </wpml:droneInfo>',
+    '    </wpml:missionConfig>',
+    '  </Document>',
+    '</kml>',
+    ''
+  ];
+  return lines.join('\r\n');
+}
+function buildWaylinesWpml(finishAction, speed, curveRadius) {
+  const wpLines = waypointData.map((wp, i) => [
+    '      <Placemark>',
+    `        <Point><coordinates>${wp.lon.toFixed(8)},${wp.lat.toFixed(8)},0</coordinates></Point>`,
+    `        <wpml:index>${i}</wpml:index>`,
+    `        <wpml:executeHeight>${wp.heightAboveLaunch.toFixed(2)}</wpml:executeHeight>`,
+    `        <wpml:waypointSpeed>${speed.toFixed(2)}</wpml:waypointSpeed>`,
+    '        <wpml:waypointHeadingParam>',
+    '          <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>',
+    '        </wpml:waypointHeadingParam>',
+    '        <wpml:waypointTurnParam>',
+    '          <wpml:waypointTurnMode>toPointAndPassWithContinuityCurvature</wpml:waypointTurnMode>',
+    `          <wpml:waypointTurnDampingDist>${curveRadius.toFixed(2)}</wpml:waypointTurnDampingDist>`,
+    `          <wpml:waypointCurveRadius>${curveRadius.toFixed(2)}</wpml:waypointCurveRadius>`,
+    '        </wpml:waypointTurnParam>',
+    '        <wpml:useStraightLine>1</wpml:useStraightLine>',
+    '      </Placemark>'
+  ].join('\r\n')).join('\r\n');
+
+  const lines = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.uav.com/wpmz/1.0.2">',
+    '  <Document>',
+    '    <wpml:missionConfig>',
+    '      <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>',
+    `      <wpml:finishAction>${finishAction}</wpml:finishAction>`,
+    '      <wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>',
+    '      <wpml:executeRCLostAction>goBack</wpml:executeRCLostAction>',
+    `      <wpml:globalTransitionalSpeed>${speed.toFixed(2)}</wpml:globalTransitionalSpeed>`,
+    '      <wpml:droneInfo>',
+    '        <wpml:droneEnumValue>68</wpml:droneEnumValue>',
+    '        <wpml:droneSubEnumValue>0</wpml:droneSubEnumValue>',
+    '      </wpml:droneInfo>',
+    '    </wpml:missionConfig>',
+    '    <Folder>',
+    '      <wpml:templateId>0</wpml:templateId>',
+    '      <wpml:executeHeightMode>relativeToStartPoint</wpml:executeHeightMode>',
+    '      <wpml:waylineId>0</wpml:waylineId>',
+    '      <wpml:distance>0</wpml:distance>',
+    '      <wpml:duration>0</wpml:duration>',
+    `      <wpml:autoFlightSpeed>${speed.toFixed(2)}</wpml:autoFlightSpeed>`,
+    wpLines,
+    '    </Folder>',
+    '  </Document>',
+    '</kml>',
+    ''
+  ];
+  return lines.join('\r\n');
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// Waypoint thinning
+// ═══════════════════════════════════════════════════════════════════════════
+function thinWaypoints(data, tolerancePct) {
+  if (!data || data.length < 3) return data;
+
+  const tol        = tolerancePct / 100;
+  const altAGL     = parseFloat(document.getElementById('alt-input').value) || 0;
+  const launchElev = window._launchElev !== undefined
+    ? window._launchElev
+    : data[0].groundElevation;
+  const last       = data.length - 1;
+
+  const retained = [0];
+  let i = 0;
+
+  while (i < last) {
+    let furthestValid = i + 1;
+    let j = i + 2;
+
+    while (j <= last) {
+      // Never jump over an original KML vertex
+      if (data[j - 1].isVertex) break;
+
+      const hA = data[i].heightAboveLaunch;
+      const hB = data[j].heightAboveLaunch;
+      let ok = true;
+
+      for (let k = i + 1; k < j; k++) {
+        const t = (k - i) / (j - i);
+        const interpolatedH = hA + t * (hB - hA);
+        const actualAGL = interpolatedH - data[k].groundElevation + launchElev;
+        if (altAGL === 0) {
+          if (Math.abs(actualAGL - altAGL) > 2) { ok = false; break; }
+        } else {
+          if (Math.abs(actualAGL - altAGL) / altAGL > tol) { ok = false; break; }
+        }
+      }
+
+      if (ok) { furthestValid = j; j++; }
+      else    { break; }
+    }
+
+    retained.push(furthestValid);
+    i = furthestValid;
+  }
+
+  if (retained[retained.length - 1] !== last) retained.push(last);
+
+  return retained.map(idx => data[idx]);
+}
+
+document.getElementById('btn-thin').addEventListener('click', () => {
+  if (!waypointData || waypointData.length < 3) return;
+
+  const tolInput = document.getElementById('thin-tolerance');
+  const tol      = parseFloat(tolInput.value);
+  const resultEl = document.getElementById('thin-result');
+
+  if (isNaN(tol) || tol <= 0 || tol > 100) {
+    resultEl.textContent = 'Enter a tolerance between 1 and 100 %';
+    resultEl.className   = 'thin-result err';
+    return;
+  }
+
+  // Always thin from the original dense data
+  if (!window._originalWaypointData) {
+    window._originalWaypointData = waypointData.slice();
+  }
+  window._launchElev = (missionStartPoint
+    ? missionStartPoint.groundElevation
+    : window._originalWaypointData[0].groundElevation);
+
+  const before = window._originalWaypointData.length;
+  waypointData = thinWaypoints(window._originalWaypointData, tol);
+  const after  = waypointData.length;
+  const removed = before - after;
+  const pct     = ((removed / before) * 100).toFixed(1);
+
+  resultEl.textContent = `${before} → ${after} waypoints  (${removed} removed, ${pct}% reduction)`;
+  resultEl.className   = 'thin-result ok';
+  updateExportButtonState();
+});
+
+document.getElementById('btn-export').addEventListener('click', async () => {
+  if (!waypointData || waypointData[0].heightAboveLaunch === null) return;
+
+  const name         = document.getElementById('mission-name').value.trim() || 'KML2Mission';
+  const finishAction = document.getElementById('finish-action').value;
+  const speed        = parseFloat(document.getElementById('speed-input').value)    || 5;
+  const altAGL       = parseFloat(document.getElementById('alt-input').value)      || 30;
+  const curveRadius  = parseFloat(document.getElementById('curve-radius').value)   || 0;
+  const takeoff      = getTakeoffCoord();
+
+  try {
+    const templateKml  = buildTemplatKml(name, finishAction, speed);
+    const waylinesWpml = buildWaylinesWpml(finishAction, speed, curveRadius);
+
+    const zip = new JSZip();
+    zip.folder('wpmz').file('template.kml',  templateKml);
+    zip.folder('wpmz').file('waylines.wpml', waylinesWpml);
+
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = name.replace(/\s+/g, '_') + '.kmz';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  } catch (err) {
+    showError('KMZ export failed: ' + err.message);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════════════════════
+function showError(msg) { errorMsg.textContent = msg; errorMsg.classList.add('visible'); }
+function hideError()    { errorMsg.classList.remove('visible'); }
+
+</script>
+</body>
+</html>
