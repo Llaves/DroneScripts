@@ -5,6 +5,8 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+VERSION = "1.2"
+
 app = FastAPI(title="OpenTopoData Proxy Bridge")
 
 # 1. CORS Configuration
@@ -27,7 +29,7 @@ class LocationRequest(BaseModel):
 # Root route for Koyeb health checks
 @app.get("/")
 async def root():
-    return {"status": "healthy"}
+    return {"status": "healthy","version": VERSION, "message": "OpenTopoData Proxy Bridge is running"}
 
 @app.get("/health")
 async def health_check():
