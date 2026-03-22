@@ -35,7 +35,7 @@
         --accent: #005ea8;
         /* WCAG-friendly blue */
         /* Text hierarchy */
-        --text: #0b0f15;
+        --text: #0a0a0a;
         /* near-navy for strong readability */
         --text-dim: #47586d;
         /* darker muted text for better contrast */
@@ -184,6 +184,17 @@
       .upload-zone.has-file {
         border-color: var(--green);
         border-style: solid;
+      }
+
+      .upload-zone.disabled {
+        opacity: .45;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+
+      .upload-zone.disabled .upload-icon {
+        border-color: var(--text-dim);
+        color: var(--text-dim);
       }
 
       .upload-icon {
@@ -374,8 +385,8 @@
 
       .url-panel-label {
         font-family: 'Space Mono', monospace;
-        font-size: 11px;
-        color: var(--text-dim);
+        font-size: 14px;
+        color: var(--text);
         letter-spacing: 2px;
         text-transform: uppercase;
         white-space: nowrap;
@@ -384,7 +395,7 @@
 
       .url-panel-value {
         font-family: 'Space Mono', monospace;
-        font-size: 12px;
+        font-size: 14px;
         color: var(--text);
         flex: 1;
         overflow: hidden;
@@ -395,6 +406,8 @@
       .url-panel-value.unset {
         color: var(--red);
         font-style: italic;
+        font-weight: bold;
+        font-size: 16pt;
       }
 
       .url-edit-btn {
@@ -643,6 +656,73 @@
         position: relative;
         height: 280px;
       }
+
+      /* ── PDF Title Dialog ─────────────────────────────────────────────────── */
+      .modal-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, .55);
+        z-index: 2000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal-backdrop.open {
+        display: flex;
+      }
+
+      .modal {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 28px 28px 22px;
+        width: min(420px, 90vw);
+        box-shadow: 0 8px 40px rgba(0,0,0,.45);
+      }
+
+      .modal-title {
+        font-family: 'Space Mono', monospace;
+        font-size: 12px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 16px;
+      }
+
+      .modal label {
+        display: block;
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        margin-bottom: 7px;
+      }
+
+      .modal input[type="text"] {
+        width: 100%;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: 'Barlow', sans-serif;
+        font-size: 14px;
+        padding: 9px 12px;
+        border-radius: 4px;
+        outline: none;
+        transition: border-color .2s;
+        margin-bottom: 18px;
+      }
+
+      .modal input[type="text"]:focus {
+        border-color: var(--accent);
+      }
+
+      .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
     </style>
   </head>
   <body>
@@ -754,8 +834,21 @@
         </div>
       </div>
     </div>
+
+    <!-- PDF Title Dialog -->
+    <div class="modal-backdrop" id="pdf-modal">
+      <div class="modal">
+        <div class="modal-title">⎙ Export to PDF</div>
+        <label for="pdf-title-input">Page Title</label>
+        <input type="text" id="pdf-title-input" placeholder="Flight Path" spellcheck="false" autocomplete="off">
+        <div class="modal-footer">
+          <button class="btn btn-outline" id="pdf-modal-cancel">Cancel</button>
+          <button class="btn btn-accent" id="pdf-modal-confirm">Generate PDF</button>
+        </div>
+      </div>
+    </div>
+
     <script>
-      // ── Theme ────────────────────────────────────────────────────────────────
       let isDark = false;
       document.getElementById('theme-toggle').addEventListener('click', () => {
         isDark = !isDark;
@@ -835,6 +928,18 @@
           el.textContent = 'Not set — click Edit URL to configure';
           el.classList.add('unset');
           $('proxy-banner').style.display = 'block';
+        }
+        updateDropZone();
+      }
+
+      function updateDropZone() {
+        const uz = $('upload-zone');
+        if (!ELEVATION_BASE) {
+          uz.classList.add('disabled');
+          uz.title = 'Set the Elevation Proxy URL first';
+        } else {
+          uz.classList.remove('disabled');
+          uz.title = '';
         }
       }
 
@@ -1559,7 +1664,7 @@ ${coords}
             ctx.drawImage(src, 0, 0);
             return tmp.toDataURL('image/png', 1.0);
           }
-          async function printChartsToPDF() {
+          async function printChartsToPDF(pageTitle) {
             if (!processedData || !chart1 || !chart2) return;
             const btn = $('btn-pdf');
             const origText = btn.textContent;
@@ -1599,8 +1704,8 @@ ${coords}
               // Capture using the hardened helper
               const img1 = chartToDataURL(chart1);
               const img2 = chartToDataURL(chart2);
-              // Header logic (preserved from your original)
-              const title = csvFile ? csvFile.name.replace(/\.csv$/i, '') : 'Flight Path';
+              // Header logic
+              const title = pageTitle || (csvFile ? csvFile.name.replace(/\.csv$/i, '') : 'Flight Path');
               doc.setFont('helvetica', 'bold');
               doc.setFontSize(14);
               doc.setTextColor(15, 23, 42); // Use static dark colors for the PDF
@@ -1630,7 +1735,39 @@ ${coords}
               btn.textContent = origText;
             }
           }
-          $('btn-pdf').addEventListener('click', printChartsToPDF);
+          // ── PDF Title Dialog ──────────────────────────────────────────────────────
+          (function () {
+            const modal    = $('pdf-modal');
+            const titleInp = $('pdf-title-input');
+
+            function openPdfDialog() {
+              if (!processedData || !chart1 || !chart2) return;
+              // Default: filename without extension
+              const defaultTitle = csvFile ? csvFile.name.replace(/\.[^.]+$/, '') : 'Flight Path';
+              titleInp.value = defaultTitle;
+              modal.classList.add('open');
+              titleInp.focus();
+              titleInp.select();
+            }
+
+            function closePdfDialog() {
+              modal.classList.remove('open');
+            }
+
+            $('btn-pdf').addEventListener('click', openPdfDialog);
+            $('pdf-modal-cancel').addEventListener('click', closePdfDialog);
+            modal.addEventListener('click', e => { if (e.target === modal) closePdfDialog(); });
+            titleInp.addEventListener('keydown', e => {
+              if (e.key === 'Enter')  $('pdf-modal-confirm').click();
+              if (e.key === 'Escape') closePdfDialog();
+            });
+
+            $('pdf-modal-confirm').addEventListener('click', () => {
+              const pageTitle = titleInp.value.trim() || 'Flight Path';
+              closePdfDialog();
+              printChartsToPDF(pageTitle);
+            });
+          })();
     </script>
   </body>
 </html>
