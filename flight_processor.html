@@ -1663,6 +1663,14 @@ ${coords}
             chart2.options.animation = false;
             chart1.update('none');
             chart2.update('none');
+
+            // Force to light mode for PDF export to ensure consistent colors, then restore after
+            const wasDark = isDark;
+            if (wasDark) {
+              isDark = false;
+              updateChartTheme(chart1);
+              updateChartTheme(chart2);
+            }
             // 2. CRITICAL: Wait for the next animation frame + a small buffer.
             // This allows Firefox's compositor to finish the draw before we read.
             await new Promise(resolve => {
@@ -1713,6 +1721,11 @@ ${coords}
               alert('PDF export failed: ' + err.message);
             } finally {
               // 3. Restore original settings
+              if (wasDark) {
+                isDark = true;
+                updateChartTheme(chart1);
+                updateChartTheme(chart2);
+              }
               chart1.options.animation = origAnim1;
               chart2.options.animation = origAnim2;
               chart1.update('none');
