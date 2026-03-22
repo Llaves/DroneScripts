@@ -1,919 +1,1636 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Flight Path Processor</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<style>
-:root {
-  --bg:#0a0e17; --surface:#111827; --surface2:#1a2236;
-  --border:#243048; --accent:#00d4ff; --text:#e2e8f0;
-  --text-dim:#64748b; --green:#10b981; --red:#ef4444;
-  --shadow: 0 2px 12px rgba(0,0,0,0.4);
-}
-[data-theme="light"] {
-  /* Base surfaces */
-  --bg: #f7f9fc;            /* very light cool gray */
-  --surface: #ffffff;       /* primary cards */
-  --surface2: #eef3f9;      /* subtle secondary panels */
-  --border: #b8c7d9;        /* darker border for definition */
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Path Processor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+      :root {
+        --bg: #0a0e17;
+        --surface: #111827;
+        --surface2: #1a2236;
+        --border: #243048;
+        --accent: #00d4ff;
+        --text: #e2e8f0;
+        --text-dim: #64748b;
+        --green: #10b981;
+        --red: #ef4444;
+        --shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+      }
 
-  /* Primary accent (deep blue for strong contrast) */
-  --accent: #005ea8;        /* WCAG-friendly blue */
-  
-  /* Text hierarchy */
-  --text: #0b0f15;          /* near-navy for strong readability */
-  --text-dim: #47586d;      /* darker muted text for better contrast */
+      [data-theme="light"] {
+        /* Base surfaces */
+        --bg: #f7f9fc;
+        /* very light cool gray */
+        --surface: #ffffff;
+        /* primary cards */
+        --surface2: #eef3f9;
+        /* subtle secondary panels */
+        --border: #b8c7d9;
+        /* darker border for definition */
+        /* Primary accent (deep blue for strong contrast) */
+        --accent: #005ea8;
+        /* WCAG-friendly blue */
+        /* Text hierarchy */
+        --text: #0b0f15;
+        /* near-navy for strong readability */
+        --text-dim: #47586d;
+        /* darker muted text for better contrast */
+        /* Status colors (slightly deeper for accessibility) */
+        --green: #0f766e;
+        /* teal-green, higher contrast */
+        --red: #b42318;
+        /* deeper red */
+        /* Elevation */
+        --shadow: 0 2px 10px rgba(15, 28, 46, 0.08);
 
-  /* Status colors (slightly deeper for accessibility) */
-  --green: #0f766e;         /* teal-green, higher contrast */
-  --red: #b42318;           /* deeper red */
-
-  /* Elevation */
-  --shadow: 0 2px 10px rgba(15, 28, 46, 0.08);
-
-  .field input,
-    .field select {
-      background: #ffffff;
-}
-}
-*{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;padding:0 0 60px;transition:background .25s,color .25s;}
-[data-theme="dark"] body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.012) 2px,rgba(0,212,255,.012) 4px);pointer-events:none;z-index:1000;}
-header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;gap:16px;position:relative;box-shadow:var(--shadow);transition:background .25s,border-color .25s;}
-header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);}
-.logo{width:36px;height:36px;border:2px solid var(--accent);display:grid;place-items:center;font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);flex-shrink:0;transition:all .25s;}
-header h1{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--accent);letter-spacing:3px;text-transform:uppercase;transition:color .25s;}
-header p{font-size:12px;color:var(--text-dim);letter-spacing:.5px;margin-top:2px;transition:color .25s;}
-.header-right{margin-left:auto;}
-.theme-toggle{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 14px;cursor:pointer;display:flex;align-items:center;gap:7px;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--text-dim);transition:all .2s;white-space:nowrap;}
-.theme-toggle:hover{border-color:var(--accent);color:var(--accent);}
-.main{max-width:1100px;margin:0 auto;padding:36px 24px;display:flex;flex-direction:column;gap:22px;}
-.upload-zone{border:2px dashed var(--border);background:var(--surface);border-radius:6px;padding:48px 40px;text-align:center;cursor:pointer;transition:all .2s;}
-.upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:var(--surface2);}
-.upload-zone.has-file{border-color:var(--green);border-style:solid;}
-.upload-icon{width:50px;height:50px;margin:0 auto 14px;border:2px solid var(--text-dim);border-radius:50%;display:grid;place-items:center;font-size:20px;color:var(--text-dim);transition:all .2s;}
-.upload-zone:hover .upload-icon{border-color:var(--accent);color:var(--accent);}
-.upload-zone.has-file .upload-icon{border-color:var(--green);color:var(--green);}
-.upload-label{font-family:'Space Mono',monospace;font-size:16px;color:var(--text-dim);}
-.upload-label strong{color:var(--text);}
-.upload-sub{font-size:14px;color:var(--text-dim);margin-top:5px;}
-.upload-filename{font-family:'Space Mono',monospace;font-size:12px;color:var(--green);margin-top:8px;}
-#file-input{display:none;}
-.controls{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:18px 22px;display:grid;grid-template-columns:1fr auto auto auto auto;gap:12px;align-items:end;box-shadow:var(--shadow);transition:background .25s,border-color .25s;}
-.field label{display:block;font-family:'Space Mono',monospace;font-size:12px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
-.field input,.field select{background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'Barlow',sans-serif;font-size:14px;padding:9px 12px;border-radius:4px;width:100%;outline:none;transition:border-color .2s,background .25s,color .25s;}
-.field input:focus,.field select:focus{border-color:var(--accent);}
-.field select option{background:var(--bg);}
-.btn{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;padding:10px 16px;border:1px solid;border-radius:4px;cursor:pointer;transition:all .15s;white-space:nowrap;display:flex;align-items:center;gap:6px;background:transparent;}
-.btn-outline{border-color:var(--border);color:var(--text-dim);}
-.btn-outline:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
-.btn:disabled{opacity:.3;cursor:not-allowed;}
-.btn-reset-zone{border-color:var(--border);color:var(--text-dim);writing-mode:vertical-rl;text-orientation:mixed;padding:16px 12px;align-self:stretch;height:auto;justify-content:center;}
-.btn-reset-zone:hover:not(:disabled){border-color:var(--red);color:var(--red);}
-.proxy-banner{background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:6px;padding:11px 18px;font-size:18px;color:var(--text-dim);transition:background .25s,border-color .25s;}
-.proxy-banner a{color:var(--accent);text-decoration:none;font-weight:600;}
-.proxy-banner a:hover{text-decoration:underline;}
-.url-panel{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px 22px;box-shadow:var(--shadow);transition:background .25s,border-color .25s;}
-.url-panel-view{display:flex;align-items:center;gap:14px;}
-.url-panel-edit{display:flex;align-items:center;gap:10px;}
-.url-panel-label{font-family:'Space Mono',monospace;font-size:11px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;white-space:nowrap;flex-shrink:0;}
-.url-panel-value{font-family:'Space Mono',monospace;font-size:12px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.url-panel-value.unset{color:var(--red);font-style:italic;}
-.url-edit-btn{margin-left:auto;flex-shrink:0;}
-.url-panel-edit input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace;font-size:12px;padding:8px 12px;border-radius:4px;outline:none;transition:border-color .2s;}
-.url-panel-edit input:focus{border-color:var(--accent);}
-.btn-accent{border-color:var(--accent);color:var(--accent);}
-.btn-accent:hover{background:var(--accent);color:#fff;}
-.btn-accent:disabled{opacity:.5;cursor:not-allowed;}
-.url-check-msg{font-family:'Space Mono',monospace;font-size:11px;padding:6px 10px;border-radius:4px;border:1px solid;}
-.url-check-msg.checking{color:var(--text-dim);border-color:var(--border);background:var(--surface2);}
-.url-check-msg.error{color:var(--red);border-color:var(--red);background:rgba(180,35,24,.06);}
-.url-check-msg.error a{color:var(--red);font-weight:700;cursor:pointer;text-decoration:underline;}
-.url-check-msg.ok{color:var(--green);border-color:var(--green);background:rgba(15,118,110,.06);}
-.progress-section{display:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:18px 22px;box-shadow:var(--shadow);transition:background .25s,border-color .25s;}
-.progress-section.visible{display:block;}
-.progress-header{display:flex;justify-content:space-between;margin-bottom:10px;}
-.progress-title{font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;}
-.progress-pct{font-family:'Space Mono',monospace;font-size:11px;color:var(--text-dim);}
-.progress-track{background:var(--bg);border:1px solid var(--border);border-radius:2px;height:5px;overflow:hidden;margin-bottom:12px;}
-.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),#0099cc);border-radius:2px;width:0%;transition:width .4s ease;}
-[data-theme="light"] .progress-fill{background:linear-gradient(90deg,#0080aa,#005577);}
-.log-lines{font-family:'Space Mono',monospace;font-size:11px;color:var(--text-dim);line-height:1.9;max-height:140px;overflow-y:auto;}
-.log-ok{color:var(--green);} .log-err{color:var(--red);} .log-info{color:var(--accent);}
-.chart-section{display:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:22px 22px 18px;box-shadow:var(--shadow);transition:background .25s,border-color .25s;}
-.chart-section.visible{display:block;}
-.chart-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;}
-.chart-title{font-family:'Space Mono',monospace;font-size:12px;color:var(--text);letter-spacing:2px;text-transform:uppercase;}
-.chart-subtitle{font-size:12px;color:var(--text-dim);margin-top:4px;}
-.xaxis-toggle{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px 22px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);transition:background .25s,border-color .25s;}
-.xaxis-label{font-family:'Space Mono',monospace;font-size:11px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;white-space:nowrap;}
-.xaxis-pills{display:flex;gap:0;border:1px solid var(--border);border-radius:4px;overflow:hidden;}
-.xaxis-pill{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;padding:8px 18px;border:none;background:transparent;color:var(--text-dim);cursor:pointer;transition:all .15s;white-space:nowrap;}
-.xaxis-pill:not(:last-child){border-right:1px solid var(--border);}
-.xaxis-pill:hover:not(.active){background:var(--surface2);color:var(--text);}
-.xaxis-pill.active{background:var(--accent);color:#fff;}
-[data-theme="light"] .xaxis-pill.active{color:#fff;}
-.chart-container{position:relative;height:280px;}
-</style>
-</head>
-<body>
-<header>
-  <div class="logo">FP</div>
-  <div>
-    <h1>Flight Path Processor</h1>
-    <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 1.3</p>
-  </div>
-  <div class="header-right">
-    <button class="theme-toggle" id="theme-toggle">
-      <span id="theme-icon">🌙</span>
-      <span id="theme-label">Dark Mode</span>
-    </button>
-  </div>
-</header>
-<div class="main">
-  <div class="proxy-banner" id="proxy-banner" style="display:none;">
-    Find instructions for setting up your own elevation proxy at the <a href="https://github.com/Llaves/DroneScripts" target="_blank" rel="noopener">GitHub repo</a>.
-  </div>
-  <div class="url-panel" id="url-panel">
-    <div class="url-panel-view" id="url-panel-view">
-      <span class="url-panel-label">Elevation Proxy URL</span>
-      <span class="url-panel-value" id="url-display">Not set</span>
-      <button class="btn btn-outline url-edit-btn" id="btn-edit-url">✎ Edit URL</button>
-    </div>
-    <div class="url-panel-edit" id="url-panel-edit" style="display:none;">
-      <div style="display:flex;flex-direction:column;flex:1;gap:7px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span class="url-panel-label">Elevation Proxy URL</span>
-          <input type="text" id="url-input" placeholder="https://your-proxy.example.com" spellcheck="false" autocomplete="off">
-          <button class="btn btn-accent" id="btn-save-url">Save</button>
-          <button class="btn btn-outline" id="btn-cancel-url">Cancel</button>
-        </div>
-        <div id="url-check-msg" class="url-check-msg" style="display:none;"></div>
-      </div>
-    </div>
-  </div>
-  <div style="display:flex;gap:12px;align-items:stretch;">
-    <div class="upload-zone" id="upload-zone" style="flex:1;">
-      <input type="file" id="file-input" accept=".csv">
-      <div class="upload-icon" id="upload-icon">↑</div>
-      <div class="upload-label"><strong>Drop CSV file here</strong></div>
-      <div class="upload-sub">or click to browse</div>
-      <div class="upload-filename" id="upload-filename"></div>
-    </div>
-    <button class="btn btn-outline btn-reset-zone" id="btn-reset" title="Reset — restore page to original state" disabled>↺ Reset All</button>
-  </div>
-  <div class="controls">
-    <div class="field">
-      <label>KML Path Title</label>
-      <input type="text" id="kml-name" placeholder="e.g. Survey Flight 2024-01-15" value="Flight Path">
-    </div>
-    <div class="field">
-      <label>Dataset</label>
-      <select id="dataset">
-        <option value="ned10m">NED 10m (US only)</option>
-        <option value="aster30m">ASTER 30m (global)</option>
-      </select>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start;">
-      <span style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);">Download Options</span>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-outline" id="btn-csv" disabled>↓ CSV</button>
-        <button class="btn btn-outline" id="btn-kml" disabled>↓ KML</button>
-        <button class="btn btn-outline" id="btn-pdf" disabled>⎙ PDF</button>
-      </div>
-    </div>
-  </div>
-  <div class="progress-section" id="progress-section">
-    <div class="progress-header">
-      <span class="progress-title">Processing</span>
-      <span class="progress-pct" id="progress-pct">0%</span>
-    </div>
-    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
-    <div class="log-lines" id="log-lines"></div>
-  </div>
-  <div class="xaxis-toggle" id="xaxis-toggle" style="display:none;">
-    <span class="xaxis-label">X-Axis</span>
-    <div class="xaxis-pills">
-      <button class="xaxis-pill active" id="pill-dist" data-axis="dist">Distance Along Path</button>
-      <button class="xaxis-pill" id="pill-time" data-axis="time">Time (seconds)</button>
-    </div>
-  </div>
-  <div class="chart-section" id="chart1-section">
-    <div class="chart-header">
-      <div>
-        <div class="chart-title">Elevation Profile</div>
-        <div class="chart-subtitle">Ground Elevation &amp; Flight Altitude vs Distance Along Path</div>
-      </div>
-      <button class="btn btn-outline" id="btn-dl-chart1" disabled>↓ PNG</button>
-    </div>
-    <div class="chart-container"><canvas id="chart1"></canvas></div>
-  </div>
-  <div class="chart-section" id="chart2-section">
-    <div class="chart-header">
-      <div>
-        <div class="chart-title">Height Above Ground</div>
-        <div class="chart-subtitle">Height Above Ground vs Distance Along Path</div>
-      </div>
-      <button class="btn btn-outline" id="btn-dl-chart2" disabled>↓ PNG</button>
-    </div>
-    <div class="chart-container"><canvas id="chart2"></canvas></div>
-  </div>
-</div>
-
-<script>
-// ── Theme ────────────────────────────────────────────────────────────────
-let isDark = false;
-document.getElementById('theme-toggle').addEventListener('click', () => {
-  isDark = !isDark;
-  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-  document.getElementById('theme-icon').textContent = isDark ? '☀️' : '🌙';
-  document.getElementById('theme-label').textContent = isDark ? 'Light Mode' : 'Dark Mode';
-  if (chart1) updateChartTheme(chart1);
-  if (chart2) updateChartTheme(chart2);
-});
-function chartThemeColors() {
-  return {
-    dim:    isDark ? '#475569' : '#7a8fa0',
-    grid:   isDark ? '#1e2d45' : '#dde8f0',
-    label:  isDark ? '#64748b' : '#7a8fa0',
-    legend: isDark ? '#94a3b8' : '#4a5568',
-    ttBg:   isDark ? '#1a2236' : '#ffffff',
-    ttBorder: isDark ? '#243048' : '#c8d6e5',
-    ttTitle:  isDark ? '#e2e8f0' : '#1a2535',
-    ttBody:   isDark ? '#94a3b8' : '#4a5568',
-  };
-}
-function updateChartTheme(chart) {
-  const c = chartThemeColors();
-  chart.options.scales.x.ticks.color = c.dim;
-  chart.options.scales.y.ticks.color = c.dim;
-  chart.options.scales.x.grid.color  = c.grid;
-  chart.options.scales.y.grid.color  = c.grid;
-  chart.options.scales.x.title.color = c.label;
-  chart.options.scales.y.title.color = c.label;
-  chart.options.plugins.legend.labels.color = c.legend;
-  chart.options.plugins.tooltip.backgroundColor = c.ttBg;
-  chart.options.plugins.tooltip.borderColor     = c.ttBorder;
-  chart.options.plugins.tooltip.titleColor      = c.ttTitle;
-  chart.options.plugins.tooltip.bodyColor       = c.ttBody;
-  chart.update();
-}
-
-// ── State ────────────────────────────────────────────────────────────────
-let csvFile = null, processedData = null, chart1 = null, chart2 = null;
-let healthStatus = null;   // null = pending, 'ok' = ready, 'error' = failed
-let healthCallTime = null; // timestamp when /health was called
-let xAxisMode = 'dist';    // 'dist' | 'time'
-
-// ── Elevation Proxy URL ───────────────────────────────────────────────────
-const STORAGE_KEY = 'fpp_elevation_base';
-const $ = id => document.getElementById(id);
-
-function stripTrailingSlash(url) {
-  return url.trim().replace(/\/+$/, '');
-}
-
-function loadStoredUrl() {
-  try { return localStorage.getItem(STORAGE_KEY) || ''; } catch(e) { return ''; }
-}
-
-function saveUrl(url) {
-  try { localStorage.setItem(STORAGE_KEY, url); } catch(e) {}
-}
-
-let ELEVATION_BASE = loadStoredUrl();
-
-function refreshUrlDisplay() {
-  const el = $('url-display');
-  if (ELEVATION_BASE) {
-    el.textContent = ELEVATION_BASE;
-    el.classList.remove('unset');
-    $('proxy-banner').style.display = 'none';
-  } else {
-    el.textContent = 'Not set — click Edit URL to configure';
-    el.classList.add('unset');
-    $('proxy-banner').style.display = 'block';
-  }
-}
-
-function showUrlEdit() {
-  $('url-panel-view').style.display = 'none';
-  $('url-panel-edit').style.display = 'flex';
-  setUrlCheckMsg(null);
-  const inp = $('url-input');
-  inp.value = ELEVATION_BASE;
-  inp.focus();
-  inp.select();
-}
-
-function hideUrlEdit() {
-  $('url-panel-edit').style.display = 'none';
-  $('url-panel-view').style.display = 'flex';
-}
-
-function setUrlCheckMsg(type, html) {
-  const el = $('url-check-msg');
-  if (!type) { el.style.display = 'none'; el.className = 'url-check-msg'; el.innerHTML = ''; return; }
-  el.className = 'url-check-msg ' + type;
-  el.innerHTML = html;
-  el.style.display = 'block';
-}
-
-// Query a single DoH resolver. Returns true if the hostname resolves,
-// false if NXDOMAIN, throws on network/timeout error.
-async function queryDoH(resolverUrl, hostname) {
-  const url = `${resolverUrl}?name=${encodeURIComponent(hostname)}&type=A`;
-  const resp = await fetch(url, {
-    headers: { Accept: 'application/dns-json' },
-    signal: AbortSignal.timeout(5000)
-  });
-  if (!resp.ok) throw new Error(`DoH HTTP ${resp.status}`);
-  const data = await resp.json();
-  // Status 0 = NOERROR, 3 = NXDOMAIN
-  if (data.Status === 3) return false;   // definitively does not exist
-  if (data.Status !== 0) throw new Error(`DNS status ${data.Status}`);
-  return true;
-}
-
-// Race Google and Cloudflare DoH — whichever answers first wins.
-// Returns { resolved: bool, source: string } or throws if both fail.
-async function checkDNS(hostname) {
-  const resolvers = [
-    { name: 'Google',     url: 'https://dns.google/resolve' },
-    { name: 'Cloudflare', url: 'https://cloudflare-dns.com/dns-query' }
-  ];
-  return Promise.any(
-    resolvers.map(r =>
-      queryDoH(r.url, hostname).then(resolved => ({ resolved, source: r.name }))
-    )
-  );
-}
-
-async function commitUrl(skipCheck = false) {
-  const raw = $('url-input').value.trim();
-  if (!raw) return;
-  const clean = stripTrailingSlash(raw);
-
-  if (!skipCheck) {
-    // Extract the hostname from the URL for DNS lookup
-    let hostname;
-    try {
-      hostname = new URL(clean).hostname;
-    } catch {
-      setUrlCheckMsg('error', '⚠ Invalid URL — please include https:// and a valid hostname. <a id="url-save-anyway">Save anyway</a>');
-      document.getElementById('url-save-anyway').addEventListener('click', () => commitUrl(true));
-      return;
-    }
-
-    $('btn-save-url').disabled = true;
-    setUrlCheckMsg('checking', `⟳ Resolving <strong>${hostname}</strong>…`);
-
-    let result;
-    try {
-      result = await checkDNS(hostname);
-    } catch {
-      // Both resolvers failed — likely a network problem reaching DoH servers
-      $('btn-save-url').disabled = false;
-      setUrlCheckMsg('error',
-        `⚠ Could not reach DNS resolvers — check your internet connection. ` +
-        `<a id="url-save-anyway">Save anyway</a>`
-      );
-      document.getElementById('url-save-anyway').addEventListener('click', () => commitUrl(true));
-      return;
-    }
-
-    $('btn-save-url').disabled = false;
-
-    if (!result.resolved) {
-      setUrlCheckMsg('error',
-        `⚠ Hostname <strong>${hostname}</strong> could not be resolved (NXDOMAIN via ${result.source}). ` +
-        `<a id="url-save-anyway">Save anyway</a>`
-      );
-      document.getElementById('url-save-anyway').addEventListener('click', () => commitUrl(true));
-      return;
-    }
-
-    setUrlCheckMsg('ok', `✓ <strong>${hostname}</strong> resolved via ${result.source}`);
-    await new Promise(r => setTimeout(r, 700));
-  }
-
-  ELEVATION_BASE = clean;
-  saveUrl(clean);
-  refreshUrlDisplay();
-  setUrlCheckMsg(null);
-  hideUrlEdit();
-}
-
-$('btn-edit-url').addEventListener('click', showUrlEdit);
-
-$('btn-save-url').addEventListener('click', () => commitUrl());
-
-$('btn-cancel-url').addEventListener('click', () => { setUrlCheckMsg(null); hideUrlEdit(); });
-
-$('url-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') commitUrl();
-  if (e.key === 'Escape') { setUrlCheckMsg(null); hideUrlEdit(); }
-});
-
-// Initialise display on load
-refreshUrlDisplay();
-
-function pingHealthEndpoint() {
-  healthStatus = null;
-  healthCallTime = Date.now();
-  doHealthFetch();
-}
-
-function doHealthFetch() {
-  fetch(`${ELEVATION_BASE}/health`)
-    .then(r => r.json())
-    .then(data => {
-      healthStatus = (data.status === 'ok') ? 'ok' : 'error';
-      if (healthStatus === 'ok') log('Elevation server is healthy', 'log-ok');
-    })
-    .catch(() => { healthStatus = 'error'; });
-}
-
-async function waitForHealth() {
-  const TIMEOUT_MS     = 30000;
-  const WARN_EVERY_MS  = 5000;
-  const RETRY_EVERY_MS = 5000;
-  const startedAt = Date.now();
-  let lastWarnAt  = 0;
-  let lastRetryAt = 0;
-  while (healthStatus !== 'ok') {
-    const elapsed = Date.now() - startedAt;
-    if (elapsed >= TIMEOUT_MS) {
-      log('Elevation server did not respond after 30 s — giving up', 'log-err');
-      throw new Error('Elevation server unavailable');
-    }
-    if (healthStatus === 'error' && elapsed - lastRetryAt >= RETRY_EVERY_MS) {
-      lastRetryAt = elapsed;
-      doHealthFetch();
-    }
-    if (elapsed - lastWarnAt >= WARN_EVERY_MS) {
-      const remaining = Math.ceil((TIMEOUT_MS - elapsed) / 1000);
-      log(`Waiting for elevation server… (${remaining}s remaining)`, 'log-info');
-      lastWarnAt = elapsed;
-    }
-    await sleep(250);
-  }
-}
-const uz = $('upload-zone'), fi = $('file-input');
-
-uz.addEventListener('click', () => fi.click());
-fi.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
-uz.addEventListener('dragover', e => { e.preventDefault(); uz.classList.add('drag-over'); });
-uz.addEventListener('dragleave', () => uz.classList.remove('drag-over'));
-uz.addEventListener('drop', e => {
-  e.preventDefault(); uz.classList.remove('drag-over');
-  const f = e.dataTransfer.files[0];
-  if (f && f.name.toLowerCase().endsWith('.csv')) handleFile(f);
-});
-
-function handleFile(f) {
-  csvFile = f; uz.classList.add('has-file');
-  $('upload-icon').textContent = '✓'; $('upload-filename').textContent = f.name;
-  processedData = null;
-  ['btn-csv','btn-kml','btn-dl-chart1','btn-dl-chart2','btn-pdf'].forEach(id => $(id).disabled = true);
-  $('chart1-section').classList.remove('visible'); $('chart2-section').classList.remove('visible');
-  $('xaxis-toggle').style.display = 'none';
-  clearLog(); $('progress-section').classList.remove('visible');
-  pingHealthEndpoint(); // fire after clearLog so its response appears in the log
-  // Enable the reset button now that a file has been loaded
-  $('btn-reset').disabled = false;
-  setTimeout(processFile, 300);
-}
-
-// ── Reset ────────────────────────────────────────────────────────────────
-function resetAll() {
-  // Destroy any active charts
-  if (chart1) { chart1.destroy(); chart1 = null; }
-  if (chart2) { chart2.destroy(); chart2 = null; }
-  // Clear all state
-  csvFile = null; processedData = null; healthStatus = null; healthCallTime = null;
-  // Reset upload zone to original appearance
-  uz.classList.remove('has-file', 'drag-over');
-  $('upload-icon').textContent = '↑';
-  $('upload-filename').textContent = '';
-  fi.value = '';
-  // Reset controls to defaults
-  $('kml-name').value = 'Flight Path';
-  $('dataset').value = 'ned10m';
-  // Disable all action buttons
-  ['btn-csv','btn-kml','btn-dl-chart1','btn-dl-chart2','btn-pdf'].forEach(id => $(id).disabled = true);
-  // Hide progress bar and charts
-  $('progress-section').classList.remove('visible');
-  $('chart1-section').classList.remove('visible');
-  $('chart2-section').classList.remove('visible');
-  $('xaxis-toggle').style.display = 'none';
-  // Reset x-axis mode to distance
-  xAxisMode = 'dist';
-  document.querySelectorAll('.xaxis-pill').forEach(p => p.classList.toggle('active', p.dataset.axis === 'dist'));
-  clearLog(); setProgress(0);
-  // Disable reset button until a new file is loaded
-  $('btn-reset').disabled = true;
-}
-
-// ── X-axis toggle ─────────────────────────────────────────────────────────
-document.querySelectorAll('.xaxis-pill').forEach(pill => {
-  pill.addEventListener('click', () => {
-    const axis = pill.dataset.axis;
-    if (axis === xAxisMode) return;
-    xAxisMode = axis;
-    document.querySelectorAll('.xaxis-pill').forEach(p => p.classList.toggle('active', p.dataset.axis === axis));
-    if (processedData) renderCharts(processedData.rows, processedData.headers);
-  });
-});
-
-$('btn-reset').addEventListener('click', resetAll);
-
-function log(msg, cls='') {
-  const d = document.createElement('div'); if (cls) d.className = cls;
-  d.textContent = '> ' + msg; $('log-lines').appendChild(d); $('log-lines').scrollTop = 9999;
-}
-function clearLog() { $('log-lines').innerHTML = ''; }
-function setProgress(pct) {
-  $('progress-fill').style.width = pct + '%';
-  $('progress-pct').textContent = Math.round(pct) + '%';
-}
-
-// ── CSV parse ────────────────────────────────────────────────────────────
-function parseCSV(text) {
-  const lines = text.trim().split(/\r?\n/);
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
-  const rows = lines.slice(1)
-    .map(line => {
-      const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g,''));
-      const obj = {}; headers.forEach((h,i) => obj[h] = cols[i] ?? '');
-      return obj;
-    })
-    .filter(r => Object.values(r).some(v => v !== ''));
-  return { headers, rows };
-}
-
-// ── Phase 1 ──────────────────────────────────────────────────────────────
-function phase1(headers, rows) {
-  if (headers.length < 9) throw new Error(`Need >= 9 columns, found ${headers.length}`);
-  const EXPECTED = ['time_s','lat','lng','alt_m','distance_to_home_m','height_m','vps_height_m','altitude_m','speed_ms'];
-  const bad = EXPECTED.map((name, i) => headers[i] !== name ? `col ${i}: expected "${name}", got "${headers[i]}"` : null).filter(Boolean);
-  if (bad.length) throw new Error(`Unexpected headers — ${bad.join('; ')}`);
-  const kH = [0,1,2,5,7,8].map(i => headers[i]);
-  const lastCol = kH[kH.length-1];
-  const allH = [...kH, 'GndElev', 'Distance Along Path', 'FlightAltitude', 'HeightAboveGround'];
-  const out = rows.map(row => {
-    const r = {}; kH.forEach(h => r[h] = row[h]);
-    r.GndElev = null; r['Distance Along Path'] = null; r.FlightAltitude = null; r.HeightAboveGround = null;
-    return r;
-  });
-  out[0]['Distance Along Path'] = 0;
-  for (let i = 1; i < out.length; i++) {
-    const v = parseFloat(rows[i][lastCol]) || 0;
-    out[i]['Distance Along Path'] = out[i-1]['Distance Along Path'] + 0.1 * v;
-  }
-  return { headers: allH, rows: out };
-}
-
-// ── Elevation fetch via OpenTopoData.org via proxy ───────────────
-
-async function fetchElevationsBatch(locs, dataset) {
-  const locStr = locs.map(([lat, lon]) => `${lat},${lon}`).join('|');
-  const url = `${ELEVATION_BASE}/v1/${dataset}`; 
-  
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ locations: locStr }) // Send as JSON object
-  });
-  
-  if (!resp.ok) {
-    const errorText = await resp.text();
-    throw new Error(`HTTP ${resp.status}: ${errorText}`);
-  }
-  
-  const data = await resp.json();
-  // Note: OpenTopoData returns uppercase "OK"
-  if (data.status !== 'OK') throw new Error(`OpenTopoData: ${data.status}`);
-  return data.results.map(r => r.elevation);
-}
-
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-// ── Phase 2 ──────────────────────────────────────────────────────────────
-async function phase2(p1, dataset, onPct) {
-  const { headers, rows } = p1;
-  const findH = pat => headers.find(h => h.toLowerCase().includes(pat));
-  const latH    = findH('lat')            || headers[0];
-  const lngH    = findH('lng') || findH('lon') || headers[1];
-  const heightH = findH('height')         || headers[4];
-
-  const sel = rows.filter((_, i) => i % 10 === 0);
-  const total = sel.length;
-  log(`Selected ${total} rows (every 10th)`, 'log-info');
-
-  // Wait for elevation server to be ready before making any requests
-  await waitForHealth();
-  log('Elevation server ready', 'log-ok');
-
-  const allElevs = [];
-  const BS = 100;
-  const totalB = Math.ceil(total / BS);
-
-  for (let b = 0; b < total; b += BS) {
-    const batch = sel.slice(b, b + BS);
-    const bn = Math.floor(b / BS) + 1;
-    log(`Fetching batch ${bn}/${totalB} (${batch.length} pts)...`);    const locs = batch.map(r => [parseFloat(r[latH]), parseFloat(r[lngH])]);
-    const elevs = await fetchElevationsBatch(locs, dataset);
-    allElevs.push(...elevs);
-    onPct(20 + (allElevs.length / total) * 70);
-    // Small polite delay between batches
-    if (b + BS < total) await sleep(300);
-  }
-
-  log(`Received ${allElevs.length} elevations`, 'log-ok');
-  const launchElev = allElevs[0];
-
-  sel.forEach((row, i) => {
-    const gnd = Math.round(allElevs[i] * 100) / 100;
-    const h   = parseFloat(row[heightH]) || 0;
-    row.GndElev          = gnd;
-    row.FlightAltitude   = Math.round((h + launchElev) * 100) / 100;
-    row.HeightAboveGround = Math.round((row.FlightAltitude - gnd) * 100) / 100;
-  });
-  return sel;
-}
-
-// ── Main ─────────────────────────────────────────────────────────────────
-async function processFile() {
-  if (!csvFile) return;
-  $('progress-section').classList.add('visible'); setProgress(0);
-  try {
-    log(`Reading ${csvFile.name}...`, 'log-info');
-    const text = await csvFile.text();
-    const { headers, rows } = parseCSV(text);
-    log(`Loaded ${rows.length} rows, ${headers.length} columns`); setProgress(5);
-    log('Phase 1: column selection & distance...', 'log-info');
-    const p1 = phase1(headers, rows);
-    log(`Phase 1 done — ${p1.rows.length} rows`); setProgress(20);
-    log('Phase 2: fetching elevations from OpenTopoData.org via proxy ...', 'log-info');
-    const finalRows = await phase2(p1, $('dataset').value, pct => setProgress(pct));
-    setProgress(95);
-    processedData = { headers: p1.headers, rows: finalRows };
-    renderCharts(finalRows, p1.headers);
-    setProgress(100);
-    log(`Complete — ${finalRows.length} output rows`, 'log-ok');
-    $('btn-csv').disabled = false; $('btn-kml').disabled = false;
-  } catch(err) {
-    log('Error: ' + err.message, 'log-err'); setProgress(0);
-  }
-}
-
-// ── Charts ────────────────────────────────────────────────────────────────
-function makeChartOpts(xL, yL) {
-  const c = chartThemeColors();
-  return {
-    responsive: true, maintainAspectRatio: false,
-    interaction: { mode: 'index', intersect: false },
-    plugins: {
-      legend: { labels: { color: c.legend, font: { family:'Barlow', size:12 }, boxWidth:18 } },
-      tooltip: {
-        backgroundColor: c.ttBg, borderColor: c.ttBorder, borderWidth: 1,
-        titleColor: c.ttTitle, bodyColor: c.ttBody,
-        titleFont: { family:'Space Mono', size:11 }, bodyFont: { family:'Barlow', size:12 },
-        callbacks: {
-          title: items => xL + ': ' + items[0].parsed.x.toFixed(1)
+        .field input,
+        .field select {
+          background: #ffffff;
         }
       }
-    },
-    scales: {
-      x: {
-        type: 'linear',
-        ticks: { color:c.dim, font:{family:'Space Mono',size:9}, maxTicksLimit:10 },
-        grid:  { color:c.grid },
-        title: { display:true, text:xL, color:c.label, font:{family:'Barlow',size:12} }
-      },
-      y: {
-        ticks: { color:c.dim, font:{family:'Space Mono',size:9} },
-        grid:  { color:c.grid },
-        title: { display:true, text:yL, color:c.label, font:{family:'Barlow',size:12} }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
       }
-    }
-  };
-}
 
-function renderCharts(rows, headers) {
-  const useTime = xAxisMode === 'time';
-  const xLabel  = useTime ? 'Time (s)' : 'Distance Along Path (m)';
-  const xWord   = useTime ? 'Time' : 'Distance Along Path';
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Barlow', sans-serif;
+        min-height: 100vh;
+        padding: 0 0 60px;
+        transition: background .25s, color .25s;
+      }
 
-  // Use {x, y} point objects on a linear axis so Chart.js spaces points
-  // proportionally to their actual numeric x value rather than treating
-  // each row as an equal-width category slot.
-  // Both fields come directly from the phase2 output rows:
-  //   'time_s'              — kept from col 0 by phase1
-  //   'Distance Along Path' — computed by phase1 (0.1 * speed_ms accumulated)
-  const xVal = r => useTime
-    ? parseFloat(r['time_s']) || 0
-    : parseFloat(r['Distance Along Path']) || 0;
+      [data-theme="dark"] body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 212, 255, .012) 2px, rgba(0, 212, 255, .012) 4px);
+        pointer-events: none;
+        z-index: 1000;
+      }
 
-  const pts = key => rows.map(r => ({ x: xVal(r), y: r[key] ?? null }));
+      header {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 16px 32px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        position: relative;
+        box-shadow: var(--shadow);
+        transition: background .25s, border-color .25s;
+      }
 
-  if (chart1) chart1.destroy();
-  chart1 = new Chart($('chart1').getContext('2d'), {
-    type: 'scatter',
-    data: { datasets: [
-      { label:'Ground Elevation (m)', data: pts('GndElev'),
-        borderColor:'#10b981', backgroundColor:'rgba(16,185,129,.1)',
-        borderWidth:2, pointRadius:0, fill:true, tension:.3, showLine:true },
-      { label:'Flight Altitude (m)', data: pts('FlightAltitude'),
-        borderColor: isDark?'#00d4ff':'#0080aa',
-        backgroundColor: isDark?'rgba(0,212,255,.04)':'rgba(0,128,170,.04)',
-        borderWidth:2, pointRadius:0, fill:false, tension:.3, showLine:true }
-    ]},
-    options: makeChartOpts(xLabel, 'Altitude (m)')
-  });
-  if (chart2) chart2.destroy();
-  chart2 = new Chart($('chart2').getContext('2d'), {
-    type: 'scatter',
-    data: { datasets: [
-      { label:'Height Above Ground (m)', data: pts('HeightAboveGround'),
-        borderColor:'#ff6b35', backgroundColor:'rgba(255,107,53,.1)',
-        borderWidth:2, pointRadius:0, fill:true, tension:.3, showLine:true }
-    ]},
-    options: makeChartOpts(xLabel, 'Height (m)')
-  });
+      header::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      }
 
-  // Update subtitles to match the active x-axis
-  document.querySelector('#chart1-section .chart-subtitle').textContent =
-    `Ground Elevation & Flight Altitude vs ${xWord}`;
-  document.querySelector('#chart2-section .chart-subtitle').textContent =
-    `Height Above Ground vs ${xWord}`;
+      .logo {
+        width: 36px;
+        height: 36px;
+        border: 2px solid var(--accent);
+        display: grid;
+        place-items: center;
+        font-family: 'Space Mono', monospace;
+        font-size: 10px;
+        color: var(--accent);
+        flex-shrink: 0;
+        transition: all .25s;
+      }
 
-  $('chart1-section').classList.add('visible'); $('chart2-section').classList.add('visible');
-  $('btn-dl-chart1').disabled = false; $('btn-dl-chart2').disabled = false; $('btn-pdf').disabled = false;
-  // Show the x-axis toggle above the charts
-  $('xaxis-toggle').style.display = 'flex';
-}
+      header h1 {
+        font-family: 'Space Mono', monospace;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--accent);
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        transition: color .25s;
+      }
 
-// ── Export helpers ────────────────────────────────────────────────────────
-function rowsToCSV(h, rows) {
-  return [h.join(','), ...rows.map(r => h.map(k => r[k] ?? '').join(','))].join('\n');
-}
-function generateKML(rows, headers, name) {
-  const latH = headers.find(h => h.toLowerCase().includes('lat')) || headers[0];
-  const lngH = headers.find(h => h.toLowerCase().includes('lng') || h.toLowerCase().includes('lon')) || headers[1];
-  const coords = rows.map(r => `          ${r[lngH]},${r[latH]},${(r.FlightAltitude||0).toFixed(4)}`).join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-  <Document>
-    <n>${name}</n>
-    <Style id="s"><LineStyle><color>ff0000ff</color><width>3</width></LineStyle></Style>
-    <Placemark>
-      <n>${name}</n>
-      <styleUrl>#s</styleUrl>
-      <LineString>
-        <altitudeMode>absolute</altitudeMode>
-        <coordinates>
+      header p {
+        font-size: 12px;
+        color: var(--text-dim);
+        letter-spacing: .5px;
+        margin-top: 2px;
+        transition: color .25s;
+      }
+
+      .header-right {
+        margin-left: auto;
+      }
+
+      .theme-toggle {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 5px 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-family: 'Space Mono', monospace;
+        font-size: 10px;
+        letter-spacing: 1px;
+        color: var(--text-dim);
+        transition: all .2s;
+        white-space: nowrap;
+      }
+
+      .theme-toggle:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 36px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+
+      .upload-zone {
+        border: 2px dashed var(--border);
+        background: var(--surface);
+        border-radius: 6px;
+        padding: 48px 40px;
+        text-align: center;
+        cursor: pointer;
+        transition: all .2s;
+      }
+
+      .upload-zone:hover,
+      .upload-zone.drag-over {
+        border-color: var(--accent);
+        background: var(--surface2);
+      }
+
+      .upload-zone.has-file {
+        border-color: var(--green);
+        border-style: solid;
+      }
+
+      .upload-icon {
+        width: 50px;
+        height: 50px;
+        margin: 0 auto 14px;
+        border: 2px solid var(--text-dim);
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 20px;
+        color: var(--text-dim);
+        transition: all .2s;
+      }
+
+      .upload-zone:hover .upload-icon {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .upload-zone.has-file .upload-icon {
+        border-color: var(--green);
+        color: var(--green);
+      }
+
+      .upload-label {
+        font-family: 'Space Mono', monospace;
+        font-size: 16px;
+        color: var(--text-dim);
+      }
+
+      .upload-label strong {
+        color: var(--text);
+      }
+
+      .upload-sub {
+        font-size: 14px;
+        color: var(--text-dim);
+        margin-top: 5px;
+      }
+
+      .upload-filename {
+        font-family: 'Space Mono', monospace;
+        font-size: 12px;
+        color: var(--green);
+        margin-top: 8px;
+      }
+
+      #file-input {
+        display: none;
+      }
+
+      .controls {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 18px 22px;
+        display: grid;
+        grid-template-columns: 1fr auto auto auto auto;
+        gap: 12px;
+        align-items: end;
+        box-shadow: var(--shadow);
+        transition: background .25s, border-color .25s;
+      }
+
+      .field label {
+        display: block;
+        font-family: 'Space Mono', monospace;
+        font-size: 12px;
+        color: var(--text-dim);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+      }
+
+      .field input,
+      .field select {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: 'Barlow', sans-serif;
+        font-size: 14px;
+        padding: 9px 12px;
+        border-radius: 4px;
+        width: 100%;
+        outline: none;
+        transition: border-color .2s, background .25s, color .25s;
+      }
+
+      .field input:focus,
+      .field select:focus {
+        border-color: var(--accent);
+      }
+
+      .field select option {
+        background: var(--bg);
+      }
+
+      .btn {
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        padding: 10px 16px;
+        border: 1px solid;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all .15s;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: transparent;
+      }
+
+      .btn-outline {
+        border-color: var(--border);
+        color: var(--text-dim);
+      }
+
+      .btn-outline:hover:not(:disabled) {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .btn:disabled {
+        opacity: .3;
+        cursor: not-allowed;
+      }
+
+      .btn-reset-zone {
+        border-color: var(--border);
+        color: var(--text-dim);
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        padding: 16px 12px;
+        align-self: stretch;
+        height: auto;
+        justify-content: center;
+      }
+
+      .btn-reset-zone:hover:not(:disabled) {
+        border-color: var(--red);
+        color: var(--red);
+      }
+
+      .proxy-banner {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
+        border-radius: 6px;
+        padding: 11px 18px;
+        font-size: 18px;
+        color: var(--text-dim);
+        transition: background .25s, border-color .25s;
+      }
+
+      .proxy-banner a {
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      .proxy-banner a:hover {
+        text-decoration: underline;
+      }
+
+      .url-panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 14px 22px;
+        box-shadow: var(--shadow);
+        transition: background .25s, border-color .25s;
+      }
+
+      .url-panel-view {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .url-panel-edit {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .url-panel-label {
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        color: var(--text-dim);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .url-panel-value {
+        font-family: 'Space Mono', monospace;
+        font-size: 12px;
+        color: var(--text);
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .url-panel-value.unset {
+        color: var(--red);
+        font-style: italic;
+      }
+
+      .url-edit-btn {
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+
+      .url-panel-edit input {
+        flex: 1;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: 'Space Mono', monospace;
+        font-size: 12px;
+        padding: 8px 12px;
+        border-radius: 4px;
+        outline: none;
+        transition: border-color .2s;
+      }
+
+      .url-panel-edit input:focus {
+        border-color: var(--accent);
+      }
+
+      .btn-accent {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .btn-accent:hover {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .btn-accent:disabled {
+        opacity: .5;
+        cursor: not-allowed;
+      }
+
+      .url-check-msg {
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        padding: 6px 10px;
+        border-radius: 4px;
+        border: 1px solid;
+      }
+
+      .url-check-msg.checking {
+        color: var(--text-dim);
+        border-color: var(--border);
+        background: var(--surface2);
+      }
+
+      .url-check-msg.error {
+        color: var(--red);
+        border-color: var(--red);
+        background: rgba(180, 35, 24, .06);
+      }
+
+      .url-check-msg.error a {
+        color: var(--red);
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: underline;
+      }
+
+      .url-check-msg.ok {
+        color: var(--green);
+        border-color: var(--green);
+        background: rgba(15, 118, 110, .06);
+      }
+
+      .progress-section {
+        display: none;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 18px 22px;
+        box-shadow: var(--shadow);
+        transition: background .25s, border-color .25s;
+      }
+
+      .progress-section.visible {
+        display: block;
+      }
+
+      .progress-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+
+      .progress-title {
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        color: var(--accent);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
+
+      .progress-pct {
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        color: var(--text-dim);
+      }
+
+      .progress-track {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 2px;
+        height: 5px;
+        overflow: hidden;
+        margin-bottom: 12px;
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), #0099cc);
+        border-radius: 2px;
+        width: 0%;
+        transition: width .4s ease;
+      }
+
+      [data-theme="light"] .progress-fill {
+        background: linear-gradient(90deg, #0080aa, #005577);
+      }
+
+      .log-lines {
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        color: var(--text-dim);
+        line-height: 1.9;
+        max-height: 140px;
+        overflow-y: auto;
+      }
+
+      .log-ok {
+        color: var(--green);
+      }
+
+      .log-err {
+        color: var(--red);
+      }
+
+      .log-info {
+        color: var(--accent);
+      }
+
+      .chart-section {
+        display: none;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 22px 22px 18px;
+        box-shadow: var(--shadow);
+        transition: background .25s, border-color .25s;
+      }
+
+      .chart-section.visible {
+        display: block;
+      }
+
+      .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 18px;
+      }
+
+      .chart-title {
+        font-family: 'Space Mono', monospace;
+        font-size: 12px;
+        color: var(--text);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
+
+      .chart-subtitle {
+        font-size: 12px;
+        color: var(--text-dim);
+        margin-top: 4px;
+      }
+
+      .xaxis-toggle {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 14px 22px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        box-shadow: var(--shadow);
+        transition: background .25s, border-color .25s;
+      }
+
+      .xaxis-label {
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        color: var(--text-dim);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .xaxis-pills {
+        display: flex;
+        gap: 0;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+
+      .xaxis-pill {
+        font-family: 'Space Mono', monospace;
+        font-size: 10px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        padding: 8px 18px;
+        border: none;
+        background: transparent;
+        color: var(--text-dim);
+        cursor: pointer;
+        transition: all .15s;
+        white-space: nowrap;
+      }
+
+      .xaxis-pill:not(:last-child) {
+        border-right: 1px solid var(--border);
+      }
+
+      .xaxis-pill:hover:not(.active) {
+        background: var(--surface2);
+        color: var(--text);
+      }
+
+      .xaxis-pill.active {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      [data-theme="light"] .xaxis-pill.active {
+        color: #fff;
+      }
+
+      .chart-container {
+        position: relative;
+        height: 280px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="logo">FP</div>
+      <div>
+        <h1>Flight Path Processor</h1>
+        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 1.3</p>
+      </div>
+      <div class="header-right">
+        <button class="theme-toggle" id="theme-toggle">
+          <span id="theme-icon">🌙</span>
+          <span id="theme-label">Dark Mode</span>
+        </button>
+      </div>
+    </header>
+    <div class="main">
+      <div class="proxy-banner" id="proxy-banner" style="display:none;"> Find instructions for setting up your own elevation proxy at the <a href="https://github.com/Llaves/DroneScripts" target="_blank" rel="noopener">GitHub repo</a>. </div>
+      <div class="url-panel" id="url-panel">
+        <div class="url-panel-view" id="url-panel-view">
+          <span class="url-panel-label">Elevation Proxy URL</span>
+          <span class="url-panel-value" id="url-display">Not set</span>
+          <button class="btn btn-outline url-edit-btn" id="btn-edit-url">✎ Edit URL</button>
+        </div>
+        <div class="url-panel-edit" id="url-panel-edit" style="display:none;">
+          <div style="display:flex;flex-direction:column;flex:1;gap:7px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="url-panel-label">Elevation Proxy URL</span>
+              <input type="text" id="url-input" placeholder="https://your-proxy.example.com" spellcheck="false" autocomplete="off">
+              <button class="btn btn-accent" id="btn-save-url">Save</button>
+              <button class="btn btn-outline" id="btn-cancel-url">Cancel</button>
+            </div>
+            <div id="url-check-msg" class="url-check-msg" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:stretch;">
+        <div class="upload-zone" id="upload-zone" style="flex:1;">
+          <input type="file" id="file-input" accept=".csv">
+          <div class="upload-icon" id="upload-icon">↑</div>
+          <div class="upload-label">
+            <strong>Drop CSV file here</strong>
+          </div>
+          <div class="upload-sub">or click to browse</div>
+          <div class="upload-filename" id="upload-filename"></div>
+        </div>
+        <button class="btn btn-outline btn-reset-zone" id="btn-reset" title="Reset — restore page to original state" disabled>↺ Reset All</button>
+      </div>
+      <div class="controls">
+        <div class="field">
+          <label>KML Path Title</label>
+          <input type="text" id="kml-name" placeholder="e.g. Survey Flight 2024-01-15" value="Flight Path">
+        </div>
+        <div class="field">
+          <label>Dataset</label>
+          <select id="dataset">
+            <option value="ned10m">NED 10m (US only)</option>
+            <option value="aster30m">ASTER 30m (global)</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start;">
+          <span style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);">Download Options</span>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline" id="btn-csv" disabled>↓ CSV</button>
+            <button class="btn btn-outline" id="btn-kml" disabled>↓ KML</button>
+            <button class="btn btn-outline" id="btn-pdf" disabled>⎙ PDF</button>
+          </div>
+        </div>
+      </div>
+      <div class="progress-section" id="progress-section">
+        <div class="progress-header">
+          <span class="progress-title">Processing</span>
+          <span class="progress-pct" id="progress-pct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div class="log-lines" id="log-lines"></div>
+      </div>
+      <div class="xaxis-toggle" id="xaxis-toggle" style="display:none;">
+        <span class="xaxis-label">X-Axis</span>
+        <div class="xaxis-pills">
+          <button class="xaxis-pill active" id="pill-dist" data-axis="dist">Distance Along Path</button>
+          <button class="xaxis-pill" id="pill-time" data-axis="time">Time (seconds)</button>
+        </div>
+      </div>
+      <div class="chart-section" id="chart1-section">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Elevation Profile</div>
+            <div class="chart-subtitle">Ground Elevation &amp; Flight Altitude vs Distance Along Path</div>
+          </div>
+          <button class="btn btn-outline" id="btn-dl-chart1" disabled>↓ PNG</button>
+        </div>
+        <div class="chart-container">
+          <canvas id="chart1"></canvas>
+        </div>
+      </div>
+      <div class="chart-section" id="chart2-section">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Height Above Ground</div>
+            <div class="chart-subtitle">Height Above Ground vs Distance Along Path</div>
+          </div>
+          <button class="btn btn-outline" id="btn-dl-chart2" disabled>↓ PNG</button>
+        </div>
+        <div class="chart-container">
+          <canvas id="chart2"></canvas>
+        </div>
+      </div>
+    </div>
+    <script>
+      // ── Theme ────────────────────────────────────────────────────────────────
+      let isDark = false;
+      document.getElementById('theme-toggle').addEventListener('click', () => {
+        isDark = !isDark;
+        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+        document.getElementById('theme-icon').textContent = isDark ? '☀️' : '🌙';
+        document.getElementById('theme-label').textContent = isDark ? 'Light Mode' : 'Dark Mode';
+        if (chart1) updateChartTheme(chart1);
+        if (chart2) updateChartTheme(chart2);
+      });
+
+      function chartThemeColors() {
+        return {
+          dim: isDark ? '#475569' : '#7a8fa0',
+          grid: isDark ? '#1e2d45' : '#dde8f0',
+          label: isDark ? '#64748b' : '#7a8fa0',
+          legend: isDark ? '#94a3b8' : '#4a5568',
+          ttBg: isDark ? '#1a2236' : '#ffffff',
+          ttBorder: isDark ? '#243048' : '#c8d6e5',
+          ttTitle: isDark ? '#e2e8f0' : '#1a2535',
+          ttBody: isDark ? '#94a3b8' : '#4a5568',
+        };
+      }
+
+      function updateChartTheme(chart) {
+        const c = chartThemeColors();
+        chart.options.scales.x.ticks.color = c.dim;
+        chart.options.scales.y.ticks.color = c.dim;
+        chart.options.scales.x.grid.color = c.grid;
+        chart.options.scales.y.grid.color = c.grid;
+        chart.options.scales.x.title.color = c.label;
+        chart.options.scales.y.title.color = c.label;
+        chart.options.plugins.legend.labels.color = c.legend;
+        chart.options.plugins.tooltip.backgroundColor = c.ttBg;
+        chart.options.plugins.tooltip.borderColor = c.ttBorder;
+        chart.options.plugins.tooltip.titleColor = c.ttTitle;
+        chart.options.plugins.tooltip.bodyColor = c.ttBody;
+        chart.update();
+      }
+      // ── State ────────────────────────────────────────────────────────────────
+      let csvFile = null,
+        processedData = null,
+        chart1 = null,
+        chart2 = null;
+      let healthStatus = null; // null = pending, 'ok' = ready, 'error' = failed
+      let healthCallTime = null; // timestamp when /health was called
+      let xAxisMode = 'dist'; // 'dist' | 'time'
+      // ── Elevation Proxy URL ───────────────────────────────────────────────────
+      const STORAGE_KEY = 'fpp_elevation_base';
+      const $ = id => document.getElementById(id);
+
+      function stripTrailingSlash(url) {
+        return url.trim().replace(/\/+$/, '');
+      }
+
+      function loadStoredUrl() {
+        try {
+          return localStorage.getItem(STORAGE_KEY) || '';
+        } catch (e) {
+          return '';
+        }
+      }
+
+      function saveUrl(url) {
+        try {
+          localStorage.setItem(STORAGE_KEY, url);
+        } catch (e) {}
+      }
+      let ELEVATION_BASE = loadStoredUrl();
+
+      function refreshUrlDisplay() {
+        const el = $('url-display');
+        if (ELEVATION_BASE) {
+          el.textContent = ELEVATION_BASE;
+          el.classList.remove('unset');
+          $('proxy-banner').style.display = 'none';
+        } else {
+          el.textContent = 'Not set — click Edit URL to configure';
+          el.classList.add('unset');
+          $('proxy-banner').style.display = 'block';
+        }
+      }
+
+      function showUrlEdit() {
+        $('url-panel-view').style.display = 'none';
+        $('url-panel-edit').style.display = 'flex';
+        setUrlCheckMsg(null);
+        const inp = $('url-input');
+        inp.value = ELEVATION_BASE;
+        inp.focus();
+        inp.select();
+      }
+
+      function hideUrlEdit() {
+        $('url-panel-edit').style.display = 'none';
+        $('url-panel-view').style.display = 'flex';
+      }
+
+      function setUrlCheckMsg(type, html) {
+        const el = $('url-check-msg');
+        if (!type) {
+          el.style.display = 'none';
+          el.className = 'url-check-msg';
+          el.innerHTML = '';
+          return;
+        }
+        el.className = 'url-check-msg ' + type;
+        el.innerHTML = html;
+        el.style.display = 'block';
+      }
+      // Query a single DoH resolver. Returns true if the hostname resolves,
+      // false if NXDOMAIN, throws on network/timeout error.
+      async function queryDoH(resolverUrl, hostname) {
+        const url = `${resolverUrl}?name=${encodeURIComponent(hostname)}&type=A`;
+        const resp = await fetch(url, {
+          headers: {
+            Accept: 'application/dns-json'
+          },
+          signal: AbortSignal.timeout(5000)
+        });
+        if (!resp.ok) throw new Error(`DoH HTTP ${resp.status}`);
+        const data = await resp.json();
+        // Status 0 = NOERROR, 3 = NXDOMAIN
+        if (data.Status === 3) return false; // definitively does not exist
+        if (data.Status !== 0) throw new Error(`DNS status ${data.Status}`);
+        return true;
+      }
+      // Race Google and Cloudflare DoH — whichever answers first wins.
+      // Returns { resolved: bool, source: string } or throws if both fail.
+      async function checkDNS(hostname) {
+        const resolvers = [{
+          name: 'Google',
+          url: 'https://dns.google/resolve'
+        }, {
+          name: 'Cloudflare',
+          url: 'https://cloudflare-dns.com/dns-query'
+        }];
+        return Promise.any(resolvers.map(r => queryDoH(r.url, hostname).then(resolved => ({
+          resolved,
+          source: r.name
+        }))));
+      }
+      async function commitUrl(skipCheck = false) {
+          const raw = $('url-input').value.trim();
+          if (!raw) return;
+          const clean = stripTrailingSlash(raw);
+          if (!skipCheck) {
+            // Extract the hostname from the URL for DNS lookup
+            let hostname;
+            try {
+              hostname = new URL(clean).hostname;
+            } catch {
+              setUrlCheckMsg('error', '⚠ Invalid URL — please include https:// and a valid hostname.  < a id = "url-save-anyway" > Save anyway < /a>');
+                document.getElementById('url-save-anyway').addEventListener('click', () => commitUrl(true));
+                return;
+              }
+              $('btn-save-url').disabled = true;
+              setUrlCheckMsg('checking', `⟳ Resolving 
+									<strong>${hostname}</strong>…`);
+              let result;
+              try {
+                result = await checkDNS(hostname);
+              } catch {
+                // Both resolvers failed — likely a network problem reaching DoH servers
+                $('btn-save-url').disabled = false;
+                setUrlCheckMsg('error', `⚠ Could not reach DNS resolvers — check your internet connection. ` + `
+									<a id="url-save-anyway">Save anyway</a>`);
+                document.getElementById('url-save-anyway').addEventListener('click', () => commitUrl(true));
+                return;
+              }
+              $('btn-save-url').disabled = false;
+              if (!result.resolved) {
+                setUrlCheckMsg('error', `⚠ Hostname 
+									<strong>${hostname}</strong> could not be resolved (NXDOMAIN via ${result.source}). ` + `
+									<a id="url-save-anyway">Save anyway</a>`);
+                document.getElementById('url-save-anyway').addEventListener('click', () => commitUrl(true));
+                return;
+              }
+              setUrlCheckMsg('ok', `✓ 
+									<strong>${hostname}</strong> resolved via ${result.source}`);
+              await new Promise(r => setTimeout(r, 700));
+            }
+            ELEVATION_BASE = clean;
+            saveUrl(clean);
+            refreshUrlDisplay();
+            setUrlCheckMsg(null);
+            hideUrlEdit();
+          }
+          $('btn-edit-url').addEventListener('click', showUrlEdit);
+          $('btn-save-url').addEventListener('click', () => commitUrl());
+          $('btn-cancel-url').addEventListener('click', () => {
+            setUrlCheckMsg(null);
+            hideUrlEdit();
+          });
+          $('url-input').addEventListener('keydown', e => {
+            if (e.key === 'Enter') commitUrl();
+            if (e.key === 'Escape') {
+              setUrlCheckMsg(null);
+              hideUrlEdit();
+            }
+          });
+          // Initialise display on load
+          refreshUrlDisplay();
+
+          function pingHealthEndpoint() {
+            healthStatus = null;
+            healthCallTime = Date.now();
+            doHealthFetch();
+          }
+
+          function doHealthFetch() {
+            fetch(`${ELEVATION_BASE}/health`).then(r => r.json()).then(data => {
+              healthStatus = (data.status === 'ok') ? 'ok' : 'error';
+              if (healthStatus === 'ok') log('Elevation server is healthy', 'log-ok');
+            }).catch(() => {
+              healthStatus = 'error';
+            });
+          }
+          async function waitForHealth() {
+            const TIMEOUT_MS = 30000;
+            const WARN_EVERY_MS = 5000;
+            const RETRY_EVERY_MS = 5000;
+            const startedAt = Date.now();
+            let lastWarnAt = 0;
+            let lastRetryAt = 0;
+            while (healthStatus !== 'ok') {
+              const elapsed = Date.now() - startedAt;
+              if (elapsed >= TIMEOUT_MS) {
+                log('Elevation server did not respond after 30 s — giving up', 'log-err');
+                throw new Error('Elevation server unavailable');
+              }
+              if (healthStatus === 'error' && elapsed - lastRetryAt >= RETRY_EVERY_MS) {
+                lastRetryAt = elapsed;
+                doHealthFetch();
+              }
+              if (elapsed - lastWarnAt >= WARN_EVERY_MS) {
+                const remaining = Math.ceil((TIMEOUT_MS - elapsed) / 1000);
+                log(`Waiting for elevation server… (${remaining}s remaining)`, 'log-info');
+                lastWarnAt = elapsed;
+              }
+              await sleep(250);
+            }
+          }
+          const uz = $('upload-zone'),
+            fi = $('file-input');
+          uz.addEventListener('click', () => fi.click());
+          fi.addEventListener('change', e => {
+            if (e.target.files[0]) handleFile(e.target.files[0]);
+          });
+          uz.addEventListener('dragover', e => {
+            e.preventDefault();
+            uz.classList.add('drag-over');
+          });
+          uz.addEventListener('dragleave', () => uz.classList.remove('drag-over'));
+          uz.addEventListener('drop', e => {
+            e.preventDefault();
+            uz.classList.remove('drag-over');
+            const f = e.dataTransfer.files[0];
+            if (f && f.name.toLowerCase().endsWith('.csv')) handleFile(f);
+          });
+
+          function handleFile(f) {
+            csvFile = f;
+            uz.classList.add('has-file');
+            $('upload-icon').textContent = '✓';
+            $('upload-filename').textContent = f.name;
+            processedData = null;
+            ['btn-csv', 'btn-kml', 'btn-dl-chart1', 'btn-dl-chart2', 'btn-pdf'].forEach(id => $(id).disabled = true);
+            $('chart1-section').classList.remove('visible');
+            $('chart2-section').classList.remove('visible');
+            $('xaxis-toggle').style.display = 'none';
+            clearLog();
+            $('progress-section').classList.remove('visible');
+            pingHealthEndpoint(); // fire after clearLog so its response appears in the log
+            // Enable the reset button now that a file has been loaded
+            $('btn-reset').disabled = false;
+            setTimeout(processFile, 300);
+          }
+          // ── Reset ────────────────────────────────────────────────────────────────
+          function resetAll() {
+            // Destroy any active charts
+            if (chart1) {
+              chart1.destroy();
+              chart1 = null;
+            }
+            if (chart2) {
+              chart2.destroy();
+              chart2 = null;
+            }
+            // Clear all state
+            csvFile = null;
+            processedData = null;
+            healthStatus = null;
+            healthCallTime = null;
+            // Reset upload zone to original appearance
+            uz.classList.remove('has-file', 'drag-over');
+            $('upload-icon').textContent = '↑';
+            $('upload-filename').textContent = '';
+            fi.value = '';
+            // Reset controls to defaults
+            $('kml-name').value = 'Flight Path';
+            $('dataset').value = 'ned10m';
+            // Disable all action buttons
+            ['btn-csv', 'btn-kml', 'btn-dl-chart1', 'btn-dl-chart2', 'btn-pdf'].forEach(id => $(id).disabled = true);
+            // Hide progress bar and charts
+            $('progress-section').classList.remove('visible');
+            $('chart1-section').classList.remove('visible');
+            $('chart2-section').classList.remove('visible');
+            $('xaxis-toggle').style.display = 'none';
+            // Reset x-axis mode to distance
+            xAxisMode = 'dist';
+            document.querySelectorAll('.xaxis-pill').forEach(p => p.classList.toggle('active', p.dataset.axis === 'dist'));
+            clearLog();
+            setProgress(0);
+            // Disable reset button until a new file is loaded
+            $('btn-reset').disabled = true;
+          }
+          // ── X-axis toggle ─────────────────────────────────────────────────────────
+          document.querySelectorAll('.xaxis-pill').forEach(pill => {
+            pill.addEventListener('click', () => {
+              const axis = pill.dataset.axis;
+              if (axis === xAxisMode) return;
+              xAxisMode = axis;
+              document.querySelectorAll('.xaxis-pill').forEach(p => p.classList.toggle('active', p.dataset.axis === axis));
+              if (processedData) renderCharts(processedData.rows, processedData.headers);
+            });
+          });
+          $('btn-reset').addEventListener('click', resetAll);
+
+          function log(msg, cls = '') {
+            const d = document.createElement('div');
+            if (cls) d.className = cls;
+            d.textContent = '> ' + msg;
+            $('log-lines').appendChild(d);
+            $('log-lines').scrollTop = 9999;
+          }
+
+          function clearLog() {
+            $('log-lines').innerHTML = '';
+          }
+
+          function setProgress(pct) {
+            $('progress-fill').style.width = pct + '%';
+            $('progress-pct').textContent = Math.round(pct) + '%';
+          }
+          // ── CSV parse ────────────────────────────────────────────────────────────
+          function parseCSV(text) {
+            const lines = text.trim().split(/\r?\n/);
+            const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+            const rows = lines.slice(1).map(line => {
+              const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+              const obj = {};
+              headers.forEach((h, i) => obj[h] = cols[i] ?? '');
+              return obj;
+            }).filter(r => Object.values(r).some(v => v !== ''));
+            return {
+              headers,
+              rows
+            };
+          }
+          // ── Phase 1 ──────────────────────────────────────────────────────────────
+          function phase1(headers, rows) {
+            if (headers.length < 9) throw new Error(`Need >= 9 columns, found ${headers.length}`);
+            const EXPECTED = ['time_s', 'lat', 'lng', 'alt_m', 'distance_to_home_m', 'height_m', 'vps_height_m', 'altitude_m', 'speed_ms'];
+            const bad = EXPECTED.map((name, i) => headers[i] !== name ? `col ${i}: expected "${name}", got "${headers[i]}"` : null).filter(Boolean);
+            if (bad.length) throw new Error(`Unexpected headers — ${bad.join('; ')}`);
+            const kH = [0, 1, 2, 5, 7, 8].map(i => headers[i]);
+            const lastCol = kH[kH.length - 1];
+            const allH = [...kH, 'GndElev', 'Distance Along Path', 'FlightAltitude', 'HeightAboveGround'];
+            const out = rows.map(row => {
+              const r = {};
+              kH.forEach(h => r[h] = row[h]);
+              r.GndElev = null;
+              r['Distance Along Path'] = null;
+              r.FlightAltitude = null;
+              r.HeightAboveGround = null;
+              return r;
+            });
+            out[0]['Distance Along Path'] = 0;
+            for (let i = 1; i < out.length; i++) {
+              const v = parseFloat(rows[i][lastCol]) || 0;
+              out[i]['Distance Along Path'] = out[i - 1]['Distance Along Path'] + 0.1 * v;
+            }
+            return {
+              headers: allH,
+              rows: out
+            };
+          }
+          // ── Elevation fetch via OpenTopoData.org via proxy ───────────────
+          async function fetchElevationsBatch(locs, dataset) {
+            const locStr = locs.map(([lat, lon]) => `${lat},${lon}`).join('|');
+            const url = `${ELEVATION_BASE}/v1/${dataset}`;
+            const resp = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                locations: locStr
+              }) // Send as JSON object
+            });
+            if (!resp.ok) {
+              const errorText = await resp.text();
+              throw new Error(`HTTP ${resp.status}: ${errorText}`);
+            }
+            const data = await resp.json();
+            // Note: OpenTopoData returns uppercase "OK"
+            if (data.status !== 'OK') throw new Error(`OpenTopoData: ${data.status}`);
+            return data.results.map(r => r.elevation);
+          }
+
+          function sleep(ms) {
+            return new Promise(r => setTimeout(r, ms));
+          }
+          // ── Phase 2 ──────────────────────────────────────────────────────────────
+          async function phase2(p1, dataset, onPct) {
+            const {
+              headers,
+              rows
+            } = p1;
+            const findH = pat => headers.find(h => h.toLowerCase().includes(pat));
+            const latH = findH('lat') || headers[0];
+            const lngH = findH('lng') || findH('lon') || headers[1];
+            const heightH = findH('height') || headers[4];
+            const sel = rows.filter((_, i) => i % 10 === 0);
+            const total = sel.length;
+            log(`Selected ${total} rows (every 10th)`, 'log-info');
+            // Wait for elevation server to be ready before making any requests
+            await waitForHealth();
+            log('Elevation server ready', 'log-ok');
+            const allElevs = [];
+            const BS = 100;
+            const totalB = Math.ceil(total / BS);
+            for (let b = 0; b < total; b += BS) {
+              const batch = sel.slice(b, b + BS);
+              const bn = Math.floor(b / BS) + 1;
+              log(`Fetching batch ${bn}/${totalB} (${batch.length} pts)...`);
+              const locs = batch.map(r => [parseFloat(r[latH]), parseFloat(r[lngH])]);
+              const elevs = await fetchElevationsBatch(locs, dataset);
+              allElevs.push(...elevs);
+              onPct(20 + (allElevs.length / total) * 70);
+              // Small polite delay between batches
+              if (b + BS < total) await sleep(300);
+            }
+            log(`Received ${allElevs.length} elevations`, 'log-ok');
+            const launchElev = allElevs[0];
+            sel.forEach((row, i) => {
+              const gnd = Math.round(allElevs[i] * 100) / 100;
+              const h = parseFloat(row[heightH]) || 0;
+              row.GndElev = gnd;
+              row.FlightAltitude = Math.round((h + launchElev) * 100) / 100;
+              row.HeightAboveGround = Math.round((row.FlightAltitude - gnd) * 100) / 100;
+            });
+            return sel;
+          }
+          // ── Main ─────────────────────────────────────────────────────────────────
+          async function processFile() {
+            if (!csvFile) return;
+            $('progress-section').classList.add('visible');
+            setProgress(0);
+            try {
+              log(`Reading ${csvFile.name}...`, 'log-info');
+              const text = await csvFile.text();
+              const {
+                headers,
+                rows
+              } = parseCSV(text);
+              log(`Loaded ${rows.length} rows, ${headers.length} columns`);
+              setProgress(5);
+              log('Phase 1: column selection & distance...', 'log-info');
+              const p1 = phase1(headers, rows);
+              log(`Phase 1 done — ${p1.rows.length} rows`);
+              setProgress(20);
+              log('Phase 2: fetching elevations from OpenTopoData.org via proxy ...', 'log-info');
+              const finalRows = await phase2(p1, $('dataset').value, pct => setProgress(pct));
+              setProgress(95);
+              processedData = {
+                headers: p1.headers,
+                rows: finalRows
+              };
+              renderCharts(finalRows, p1.headers);
+              setProgress(100);
+              log(`Complete — ${finalRows.length} output rows`, 'log-ok');
+              $('btn-csv').disabled = false;
+              $('btn-kml').disabled = false;
+            } catch (err) {
+              log('Error: ' + err.message, 'log-err');
+              setProgress(0);
+            }
+          }
+          // ── Charts ────────────────────────────────────────────────────────────────
+          function makeChartOpts(xL, yL) {
+            const c = chartThemeColors();
+            return {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: {
+                mode: 'index',
+                intersect: false
+              },
+              plugins: {
+                legend: {
+                  labels: {
+                    color: c.legend,
+                    font: {
+                      family: 'Barlow',
+                      size: 12
+                    },
+                    boxWidth: 18
+                  }
+                },
+                tooltip: {
+                  backgroundColor: c.ttBg,
+                  borderColor: c.ttBorder,
+                  borderWidth: 1,
+                  titleColor: c.ttTitle,
+                  bodyColor: c.ttBody,
+                  titleFont: {
+                    family: 'Space Mono',
+                    size: 11
+                  },
+                  bodyFont: {
+                    family: 'Barlow',
+                    size: 12
+                  },
+                  callbacks: {
+                    title: items => xL + ': ' + items[0].parsed.x.toFixed(1)
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  type: 'linear',
+                  ticks: {
+                    color: c.dim,
+                    font: {
+                      family: 'Space Mono',
+                      size: 9
+                    },
+                    maxTicksLimit: 10
+                  },
+                  grid: {
+                    color: c.grid
+                  },
+                  title: {
+                    display: true,
+                    text: xL,
+                    color: c.label,
+                    font: {
+                      family: 'Barlow',
+                      size: 12
+                    }
+                  }
+                },
+                y: {
+                  ticks: {
+                    color: c.dim,
+                    font: {
+                      family: 'Space Mono',
+                      size: 9
+                    }
+                  },
+                  grid: {
+                    color: c.grid
+                  },
+                  title: {
+                    display: true,
+                    text: yL,
+                    color: c.label,
+                    font: {
+                      family: 'Barlow',
+                      size: 12
+                    }
+                  }
+                }
+              }
+            };
+          }
+
+          function renderCharts(rows, headers) {
+            const useTime = xAxisMode === 'time';
+            const xLabel = useTime ? 'Time (s)' : 'Distance Along Path (m)';
+            const xWord = useTime ? 'Time' : 'Distance Along Path';
+            // Use {x, y} point objects on a linear axis so Chart.js spaces points
+            // proportionally to their actual numeric x value rather than treating
+            // each row as an equal-width category slot.
+            // Both fields come directly from the phase2 output rows:
+            //   'time_s'              — kept from col 0 by phase1
+            //   'Distance Along Path' — computed by phase1 (0.1 * speed_ms accumulated)
+            const xVal = r => useTime ? parseFloat(r['time_s']) || 0 : parseFloat(r['Distance Along Path']) || 0;
+            const pts = key => rows.map(r => ({
+              x: xVal(r),
+              y: r[key] ?? null
+            }));
+            if (chart1) chart1.destroy();
+            chart1 = new Chart($('chart1').getContext('2d'), {
+              type: 'scatter',
+              data: {
+                datasets: [{
+                  label: 'Ground Elevation (m)',
+                  data: pts('GndElev'),
+                  borderColor: '#10b981',
+                  backgroundColor: 'rgba(16,185,129,.1)',
+                  borderWidth: 2,
+                  pointRadius: 0,
+                  fill: true,
+                  tension: .3,
+                  showLine: true
+                }, {
+                  label: 'Flight Altitude (m)',
+                  data: pts('FlightAltitude'),
+                  borderColor: isDark ? '#00d4ff' : '#0080aa',
+                  backgroundColor: isDark ? 'rgba(0,212,255,.04)' : 'rgba(0,128,170,.04)',
+                  borderWidth: 2,
+                  pointRadius: 0,
+                  fill: false,
+                  tension: .3,
+                  showLine: true
+                }]
+              },
+              options: makeChartOpts(xLabel, 'Altitude (m)')
+            });
+            if (chart2) chart2.destroy();
+            chart2 = new Chart($('chart2').getContext('2d'), {
+              type: 'scatter',
+              data: {
+                datasets: [{
+                  label: 'Height Above Ground (m)',
+                  data: pts('HeightAboveGround'),
+                  borderColor: '#ff6b35',
+                  backgroundColor: 'rgba(255,107,53,.1)',
+                  borderWidth: 2,
+                  pointRadius: 0,
+                  fill: true,
+                  tension: .3,
+                  showLine: true
+                }]
+              },
+              options: makeChartOpts(xLabel, 'Height (m)')
+            });
+            // Update subtitles to match the active x-axis
+            document.querySelector('#chart1-section .chart-subtitle').textContent = `Ground Elevation & Flight Altitude vs ${xWord}`;
+            document.querySelector('#chart2-section .chart-subtitle').textContent = `Height Above Ground vs ${xWord}`;
+            $('chart1-section').classList.add('visible');
+            $('chart2-section').classList.add('visible');
+            $('btn-dl-chart1').disabled = false;
+            $('btn-dl-chart2').disabled = false;
+            $('btn-pdf').disabled = false;
+            // Show the x-axis toggle above the charts
+            $('xaxis-toggle').style.display = 'flex';
+          }
+          // ── Export helpers ────────────────────────────────────────────────────────
+          function rowsToCSV(h, rows) {
+            return [h.join(','), ...rows.map(r => h.map(k => r[k] ?? '').join(','))].join('\n');
+          }
+
+          function generateKML(rows, headers, name) {
+            const latH = headers.find(h => h.toLowerCase().includes('lat')) || headers[0];
+            const lngH = headers.find(h => h.toLowerCase().includes('lng') || h.toLowerCase().includes('lon')) || headers[1];
+            const coords = rows.map(r => `          ${r[lngH]},${r[latH]},${(r.FlightAltitude||0).toFixed(4)}`).join('\n');
+            return `
+									<?xml version="1.0" encoding="UTF-8"?>
+									<kml
+										xmlns="http://www.opengis.net/kml/2.2">
+										<Document>
+											<n>${name}</n>
+											<Style id="s">
+												<LineStyle>
+													<color>ff0000ff</color>
+													<width>3</width>
+												</LineStyle>
+											</Style>
+											<Placemark>
+												<n>${name}</n>
+												<styleUrl>#s</styleUrl>
+												<LineString>
+													<altitudeMode>absolute</altitudeMode>
+													<coordinates>
 ${coords}
         </coordinates>
-      </LineString>
-    </Placemark>
-  </Document>
-</kml>`;
-}
-function dlBlob(content, filename, mime) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([content], {type:mime}));
-  a.download = filename; a.click();
-}
-function dlCanvas(id, filename) {
-  const c = $(id);
-  const t = document.createElement('canvas'); t.width = c.width; t.height = c.height;
-  const ctx = t.getContext('2d');
-  ctx.fillStyle = isDark ? '#111827' : '#ffffff';
-  ctx.fillRect(0, 0, t.width, t.height); ctx.drawImage(c, 0, 0);
-  const a = document.createElement('a'); a.href = t.toDataURL('image/png'); a.download = filename; a.click();
-}
+												</LineString>
+											</Placemark>
+										</Document>
+									</kml>`;
+          }
 
-// ── X-axis toggle ─────────────────────────────────────────────────────────
-document.querySelectorAll('.xaxis-pill').forEach(pill => {
-  pill.addEventListener('click', () => {
-    const axis = pill.dataset.axis;
-    if (axis === xAxisMode) return;
-    xAxisMode = axis;
-    document.querySelectorAll('.xaxis-pill').forEach(p => p.classList.toggle('active', p.dataset.axis === axis));
-    if (processedData) renderCharts(processedData.rows, processedData.headers);
-  });
-});
+          function dlBlob(content, filename, mime) {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([content], {
+              type: mime
+            }));
+            a.download = filename;
+            a.click();
+          }
 
-$('btn-csv').addEventListener('click', () => {
-  if (!processedData) return;
-  dlBlob(rowsToCSV(processedData.headers, processedData.rows),
-    csvFile.name.replace(/\.csv$/i,'') + '_processed.csv', 'text/csv');
-});
-$('btn-kml').addEventListener('click', () => {
-  if (!processedData) return;
-  dlBlob(generateKML(processedData.rows, processedData.headers, $('kml-name').value || 'Flight Path'),
-    csvFile.name.replace(/\.csv$/i,'') + '_path.kml', 'application/vnd.google-earth.kml+xml');
-});
-$('btn-dl-chart1').addEventListener('click', () => dlCanvas('chart1', 'elevation_profile.png'));
-$('btn-dl-chart2').addEventListener('click', () => dlCanvas('chart2', 'height_above_ground.png'));
-
-// ── Print Charts to PDF ───────────────────────────────────────────────────
-async function printChartsToPDF() {
-  if (!processedData || !chart1 || !chart2) return;
-
-  const btn = $('btn-pdf');
-  const origText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = '⟳ Generating…';
-
-  try {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
-
-    // US Letter landscape: 279.4mm × 215.9mm
-    const pageW = 279.4, pageH = 215.9;
-    const marginX = 14, marginY = 12;
-    const contentW = pageW - marginX * 2;
-
-    // ── Header ──────────────────────────────────────────────────────────
-    const title = csvFile ? csvFile.name.replace(/\.csv$/i, '') : 'Flight Path';
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.setTextColor(isDark ? 220 : 15, isDark ? 232 : 23, isDark ? 240 : 42);
-    doc.text(title, marginX, marginY + 5);
-
-    // Thin accent rule under title
-    const accentGray = isDark ? [0, 180, 220] : [0, 94, 168];
-    doc.setDrawColor(...accentGray);
-    doc.setLineWidth(0.5);
-    doc.line(marginX, marginY + 8, pageW - marginX, marginY + 8);
-
-    // Sub-label: x-axis mode
-    const xWord = xAxisMode === 'time' ? 'Time (s)' : 'Distance Along Path (m)';
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`X-Axis: ${xWord}`, marginX, marginY + 13);
-
-    // Date stamp (right-aligned)
-    const dateStr = new Date().toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
-    doc.text(dateStr, pageW - marginX, marginY + 13, { align: 'right' });
-
-    // ── Chart layout ─────────────────────────────────────────────────────
-    // Two charts stacked vertically, filling remaining page height
-    const chartTop = marginY + 17;
-    const gap = 5;
-    const chartH = (pageH - chartTop - marginY - gap) / 2;
-    const chartW = contentW;
-
-    // Helper: render a chart canvas to a white-background PNG dataURL
-    function chartToDataURL(chartObj) {
-      const src = chartObj.canvas;
-      const tmp = document.createElement('canvas');
-      tmp.width = src.width; tmp.height = src.height;
-      const ctx = tmp.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, tmp.width, tmp.height);
-      ctx.drawImage(src, 0, 0);
-      return tmp.toDataURL('image/png');
-    }
-
-    // Chart 1 title
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(isDark ? 180 : 40, isDark ? 200 : 55, isDark ? 220 : 70);
-    doc.text('ELEVATION PROFILE', marginX, chartTop + 4);
-
-    const img1 = chartToDataURL(chart1);
-    doc.addImage(img1, 'PNG', marginX, chartTop + 6, chartW, chartH - 6);
-
-    // Chart 2 title
-    const chart2Top = chartTop + chartH + gap;
-    doc.text('HEIGHT ABOVE GROUND', marginX, chart2Top + 4);
-
-    const img2 = chartToDataURL(chart2);
-    doc.addImage(img2, 'PNG', marginX, chart2Top + 6, chartW, chartH - 6);
-
-    // ── Save ─────────────────────────────────────────────────────────────
-    const filename = (csvFile ? csvFile.name.replace(/\.csv$/i, '') : 'flight_charts') + '_charts.pdf';
-    doc.save(filename);
-
-  } catch (err) {
-    console.error('PDF export failed:', err);
-    alert('PDF export failed: ' + err.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = origText;
-  }
-}
-
-$('btn-pdf').addEventListener('click', printChartsToPDF);
-</script>
-</body>
+          function dlCanvas(id, filename) {
+            const c = $(id);
+            const t = document.createElement('canvas');
+            t.width = c.width;
+            t.height = c.height;
+            const ctx = t.getContext('2d');
+            ctx.fillStyle = isDark ? '#111827' : '#ffffff';
+            ctx.fillRect(0, 0, t.width, t.height);
+            ctx.drawImage(c, 0, 0);
+            const a = document.createElement('a');
+            a.href = t.toDataURL('image/png');
+            a.download = filename;
+            a.click();
+          }
+          // ── X-axis toggle ─────────────────────────────────────────────────────────
+          document.querySelectorAll('.xaxis-pill').forEach(pill => {
+            pill.addEventListener('click', () => {
+              const axis = pill.dataset.axis;
+              if (axis === xAxisMode) return;
+              xAxisMode = axis;
+              document.querySelectorAll('.xaxis-pill').forEach(p => p.classList.toggle('active', p.dataset.axis === axis));
+              if (processedData) renderCharts(processedData.rows, processedData.headers);
+            });
+          });
+          $('btn-csv').addEventListener('click', () => {
+            if (!processedData) return;
+            dlBlob(rowsToCSV(processedData.headers, processedData.rows), csvFile.name.replace(/\.csv$/i, '') + '_processed.csv', 'text/csv');
+          });
+          $('btn-kml').addEventListener('click', () => {
+            if (!processedData) return;
+            dlBlob(generateKML(processedData.rows, processedData.headers, $('kml-name').value || 'Flight Path'), csvFile.name.replace(/\.csv$/i, '') + '_path.kml', 'application/vnd.google-earth.kml+xml');
+          });
+          $('btn-dl-chart1').addEventListener('click', () => dlCanvas('chart1', 'elevation_profile.png'));
+          $('btn-dl-chart2').addEventListener('click', () => dlCanvas('chart2', 'height_above_ground.png'));
+          // ── Print Charts to PDF ───────────────────────────────────────────────────
+          // ── Print Charts to PDF ───────────────────────────────────────────────────
+          /**
+           * Helper: Renders a chart canvas to a white-background PNG dataURL.
+           * Forces a fresh render and disables animation to ensure Firefox 
+           * captures the final state of the plot.
+           */
+          function chartToDataURL(chartObj) {
+            const src = chartObj.canvas;
+            // 1. Temporary toggle: Disable animation to prevent capturing "frame 0"
+            const initialAnim = chartObj.options.animation;
+            chartObj.options.animation = false;
+            // 2. Force Firefox to commit pixels to the buffer immediately
+            chartObj.render();
+            const tmp = document.createElement('canvas');
+            tmp.width = src.width;
+            tmp.height = src.height;
+            const ctx = tmp.getContext('2d');
+            // 3. Apply white background (prevents transparent black charts in PDF)
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, tmp.width, tmp.height);
+            // 4. Draw the source chart onto the static canvas
+            ctx.drawImage(src, 0, 0);
+            const dataUrl = tmp.toDataURL('image/png', 1.0);
+            // 5. Restore original chart state for the web UI
+            chartObj.options.animation = initialAnim;
+            return dataUrl;
+          }
+          // 1. IMPROVED CAPTURE LOGIC
+          function chartToDataURL(chartObj) {
+            // Use Chart.js's internal toBase64Image() which is more reliable 
+            // in Firefox than manual canvas-to-canvas copying.
+            const chartImage = chartObj.toBase64Image('image/png', 1.0);
+            // We still need to put it on a white background because Chart.js 
+            // exports are transparent, and PDFs render transparency as black.
+            const tmp = document.createElement('canvas');
+            tmp.width = chartObj.width;
+            tmp.height = chartObj.height;
+            const ctx = tmp.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, tmp.width, tmp.height);
+            // Create an image object to draw the base64 string onto our white canvas
+            const img = new Image();
+            img.src = chartImage;
+            // We must return the dataURL synchronously for your current flow,
+            // but Firefox sometimes needs the image to "exist". 
+            // Using the chartObj.canvas directly as the source is safer here:
+            ctx.drawImage(chartObj.canvas, 0, 0);
+            return tmp.toDataURL('image/png', 1.0);
+          }
+          // 2. UPDATED PDF FUNCTION
+          // ── Hardened Chart Capture for Firefox ────────────────────────────────────
+          /**
+           * Uses willReadFrequently to bypass Firefox GPU buffer clearing
+           * and adds an explicit redraw to ensure the buffer is populated.
+           */
+          function chartToDataURL(chartObj) {
+            const src = chartObj.canvas;
+            // 1. Force a synchronous render to ensure the source buffer is hot
+            chartObj.render();
+            // 2. Create temp canvas with willReadFrequently to prevent blank exports in Firefox
+            const tmp = document.createElement('canvas');
+            tmp.width = src.width;
+            tmp.height = src.height;
+            // This attribute is the key for Firefox/Chrome hardware acceleration issues
+            const ctx = tmp.getContext('2d', {
+              willReadFrequently: true
+            });
+            // 3. Ensure background is white (PDFs render transparent as black)
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, tmp.width, tmp.height);
+            // 4. Draw directly from the source canvas
+            ctx.drawImage(src, 0, 0);
+            return tmp.toDataURL('image/png', 1.0);
+          }
+          async function printChartsToPDF() {
+            if (!processedData || !chart1 || !chart2) return;
+            const btn = $('btn-pdf');
+            const origText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⟳ Capturing...';
+            // 1. Turn off animations globally for the capture duration
+            const origAnim1 = chart1.options.animation;
+            const origAnim2 = chart2.options.animation;
+            chart1.options.animation = false;
+            chart2.options.animation = false;
+            chart1.update('none');
+            chart2.update('none');
+            // 2. CRITICAL: Wait for the next animation frame + a small buffer.
+            // This allows Firefox's compositor to finish the draw before we read.
+            await new Promise(resolve => {
+              requestAnimationFrame(() => {
+                setTimeout(resolve, 150);
+              });
+            });
+            try {
+              const {
+                jsPDF
+              } = window.jspdf;
+              const doc = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: 'letter'
+              });
+              const pageW = 279.4,
+                pageH = 215.9;
+              const marginX = 14,
+                marginY = 12;
+              const contentW = pageW - marginX * 2;
+              const chartTop = marginY + 17;
+              const gap = 5;
+              const chartH = (pageH - chartTop - marginY - gap) / 2;
+              // Capture using the hardened helper
+              const img1 = chartToDataURL(chart1);
+              const img2 = chartToDataURL(chart2);
+              // Header logic (preserved from your original)
+              const title = csvFile ? csvFile.name.replace(/\.csv$/i, '') : 'Flight Path';
+              doc.setFont('helvetica', 'bold');
+              doc.setFontSize(14);
+              doc.setTextColor(15, 23, 42); // Use static dark colors for the PDF
+              doc.text(title, marginX, marginY + 5);
+              doc.setDrawColor(0, 94, 168);
+              doc.setLineWidth(0.5);
+              doc.line(marginX, marginY + 8, pageW - marginX, marginY + 8);
+              // Add Images to PDF
+              doc.setFontSize(8);
+              doc.text('ELEVATION PROFILE', marginX, chartTop + 4);
+              doc.addImage(img1, 'PNG', marginX, chartTop + 6, contentW, chartH - 6);
+              const chart2Top = chartTop + chartH + gap;
+              doc.text('HEIGHT ABOVE GROUND', marginX, chart2Top + 4);
+              doc.addImage(img2, 'PNG', marginX, chart2Top + 6, contentW, chartH - 6);
+              const filename = (csvFile ? csvFile.name.replace(/\.csv$/i, '') : 'flight_charts') + '_charts.pdf';
+              doc.save(filename);
+            } catch (err) {
+              console.error('PDF export failed:', err);
+              alert('PDF export failed: ' + err.message);
+            } finally {
+              // 3. Restore original settings
+              chart1.options.animation = origAnim1;
+              chart2.options.animation = origAnim2;
+              chart1.update('none');
+              chart2.update('none');
+              btn.disabled = false;
+              btn.textContent = origText;
+            }
+          }
+          $('btn-pdf').addEventListener('click', printChartsToPDF);
+    </script>
+  </body>
 </html>
