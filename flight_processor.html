@@ -565,15 +565,15 @@
 
       .chart-title {
         font-family: 'Roboto Mono', monospace;
-        font-size: 12px;
+        font-size: 14px;
         color: var(--text);
         letter-spacing: 2px;
         text-transform: uppercase;
       }
 
       .chart-subtitle {
-        font-size: 12px;
-        color: var(--text-dim);
+        font-size: 14px;
+        color: var(--text);
         margin-top: 4px;
       }
 
@@ -716,7 +716,7 @@
       <div class="logo">FP</div>
       <div>
         <h1>Flight Path Processor</h1>
-        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 1.5</p>
+        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 1.6</p>
       </div>
       <div class="header-right">
         <button class="theme-toggle" id="theme-toggle">
@@ -847,14 +847,14 @@
 
       function chartThemeColors() {
         return {
-          dim: isDark ? '#475569' : '#7a8fa0',
-          grid: isDark ? '#1e2d45' : '#dde8f0',
-          label: isDark ? '#64748b' : '#7a8fa0',
-          legend: isDark ? '#94a3b8' : '#4a5568',
+          dim: isDark ? '#475569' : '#050505',
+          grid: isDark ? '#1e2d45' : '#b0b0b0',
+          label: isDark ? '#64748b' : '#050505',
+          legend: isDark ? '#94a3b8' : '##36454F',
           ttBg: isDark ? '#1a2236' : '#ffffff',
-          ttBorder: isDark ? '#243048' : '#c8d6e5',
+          ttBorder: isDark ? '#243048' : '##36454F',
           ttTitle: isDark ? '#e2e8f0' : '#1a2535',
-          ttBody: isDark ? '#94a3b8' : '#4a5568',
+          ttBody: isDark ? '#94a3b8' : '##36454F',
         };
       }
 
