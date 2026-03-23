@@ -716,7 +716,7 @@
       <div class="logo">FP</div>
       <div>
         <h1>Flight Path Processor</h1>
-        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 1.6</p>
+        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 1.7</p>
       </div>
       <div class="header-right">
         <button class="theme-toggle" id="theme-toggle">
@@ -850,11 +850,11 @@
           dim: isDark ? '#475569' : '#050505',
           grid: isDark ? '#1e2d45' : '#b0b0b0',
           label: isDark ? '#64748b' : '#050505',
-          legend: isDark ? '#94a3b8' : '##36454F',
+          legend: isDark ? '#94a3b8' : '#36454F',
           ttBg: isDark ? '#1a2236' : '#ffffff',
-          ttBorder: isDark ? '#243048' : '##36454F',
+          ttBorder: isDark ? '#243048' : '#36454F',
           ttTitle: isDark ? '#e2e8f0' : '#1a2535',
-          ttBody: isDark ? '#94a3b8' : '##36454F',
+          ttBody: isDark ? '#94a3b8' : '#36454F',
         };
       }
 
@@ -1372,7 +1372,7 @@
                     size: 12
                   },
                   callbacks: {
-                    title: items => xL + ': ' + items[0].parsed.x.toFixed(1)
+                    title: items => xL + ': ' + items[0].parsed.x.toFixed(1)                
                   }
                 }
               },
@@ -1541,17 +1541,24 @@ ${coords}
             a.click();
           }
 
-          function dlCanvas(id, filename) {
-            const c = $(id);
-            const t = document.createElement('canvas');
-            t.width = c.width;
-            t.height = c.height;
-            const ctx = t.getContext('2d');
-            ctx.fillStyle = isDark ? '#111827' : '#ffffff';
-            ctx.fillRect(0, 0, t.width, t.height);
-            ctx.drawImage(c, 0, 0);
+          async function dlCanvas(chartObj, filename) {
+            // Disable animation and force a synchronous render
+            const origAnim = chartObj.options.animation;
+            chartObj.options.animation = false;
+            chartObj.update('none');
+
+            // Wait for Firefox's compositor to flush the canvas buffer
+            await new Promise(resolve => {
+              requestAnimationFrame(() => setTimeout(resolve, 150));
+            });
+
+            const dataUrl = chartToDataURL(chartObj);
+
+            // Restore animation state
+            chartObj.options.animation = origAnim;
+
             const a = document.createElement('a');
-            a.href = t.toDataURL('image/png');
+            a.href = dataUrl;
             a.download = filename;
             a.click();
           }
@@ -1573,58 +1580,9 @@ ${coords}
             if (!processedData) return;
             dlBlob(generateKML(processedData.rows, processedData.headers, $('kml-name').value || 'Flight Path'), csvFile.name.replace(/\.csv$/i, '') + '_path.kml', 'application/vnd.google-earth.kml+xml');
           });
-          $('btn-dl-chart1').addEventListener('click', () => dlCanvas('chart1', 'elevation_profile.png'));
-          $('btn-dl-chart2').addEventListener('click', () => dlCanvas('chart2', 'height_above_ground.png'));
-          // ── Print Charts to PDF ───────────────────────────────────────────────────
-          // ── Print Charts to PDF ───────────────────────────────────────────────────
-          /**
-           * Helper: Renders a chart canvas to a white-background PNG dataURL.
-           * Forces a fresh render and disables animation to ensure Firefox 
-           * captures the final state of the plot.
-           */
-          function chartToDataURL(chartObj) {
-            const src = chartObj.canvas;
-            // 1. Temporary toggle: Disable animation to prevent capturing "frame 0"
-            const initialAnim = chartObj.options.animation;
-            chartObj.options.animation = false;
-            // 2. Force Firefox to commit pixels to the buffer immediately
-            chartObj.render();
-            const tmp = document.createElement('canvas');
-            tmp.width = src.width;
-            tmp.height = src.height;
-            const ctx = tmp.getContext('2d');
-            // 3. Apply white background (prevents transparent black charts in PDF)
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, tmp.width, tmp.height);
-            // 4. Draw the source chart onto the static canvas
-            ctx.drawImage(src, 0, 0);
-            const dataUrl = tmp.toDataURL('image/png', 1.0);
-            // 5. Restore original chart state for the web UI
-            chartObj.options.animation = initialAnim;
-            return dataUrl;
-          }
-          // 1. IMPROVED CAPTURE LOGIC
-          function chartToDataURL(chartObj) {
-            // Use Chart.js's internal toBase64Image() which is more reliable 
-            // in Firefox than manual canvas-to-canvas copying.
-            const chartImage = chartObj.toBase64Image('image/png', 1.0);
-            // We still need to put it on a white background because Chart.js 
-            // exports are transparent, and PDFs render transparency as black.
-            const tmp = document.createElement('canvas');
-            tmp.width = chartObj.width;
-            tmp.height = chartObj.height;
-            const ctx = tmp.getContext('2d');
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, tmp.width, tmp.height);
-            // Create an image object to draw the base64 string onto our white canvas
-            const img = new Image();
-            img.src = chartImage;
-            // We must return the dataURL synchronously for your current flow,
-            // but Firefox sometimes needs the image to "exist". 
-            // Using the chartObj.canvas directly as the source is safer here:
-            ctx.drawImage(chartObj.canvas, 0, 0);
-            return tmp.toDataURL('image/png', 1.0);
-          }
+          $('btn-dl-chart1').addEventListener('click', () => dlCanvas(chart1, 'elevation_profile.png'));
+          $('btn-dl-chart2').addEventListener('click', () => dlCanvas(chart2, 'height_above_ground.png'));
+
           // 2. UPDATED PDF FUNCTION
           // ── Hardened Chart Capture for Firefox ────────────────────────────────────
           /**
