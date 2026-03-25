@@ -1725,28 +1725,43 @@ function pingHealthEndpoint() {
   if (!ELEVATION_BASE) return;
   healthStatus   = null;
   healthCallTime = Date.now();
+  doHealthFetch();
+}
+
+function doHealthFetch() {
   fetch(`${ELEVATION_BASE}/health`)
     .then(r => r.json())
-    .then(data => { healthStatus = (data.status === 'ok') ? 'ok' : 'error'; })
+    .then(data => {
+      healthStatus = (data.status === 'ok') ? 'ok' : 'error';
+      if (healthStatus === 'ok') logLine('Elevation server is healthy', 'log-ok');
+    })
     .catch(() => { healthStatus = 'error'; });
 }
 
 async function waitForHealth() {
-  const WARN_AFTER_MS = 5000;
-  let warnLogged = false;
+  const TIMEOUT_MS    = 30000;
+  const WARN_EVERY_MS = 5000;
+  const RETRY_EVERY_MS = 5000;
+  const startedAt = Date.now();
+  let lastWarnAt  = 0;
+  let lastRetryAt = 0;
   while (healthStatus !== 'ok') {
-    if (healthStatus === 'error') {
-      logLine('Elevation server health check failed — attempting anyway', 'log-err');
-      return;
+    const elapsed = Date.now() - startedAt;
+    if (elapsed >= TIMEOUT_MS) {
+      logLine('Elevation server did not respond after 30 s — giving up', 'log-err');
+      throw new Error('Elevation server unavailable');
     }
-    const elapsed = Date.now() - healthCallTime;
-    if (!warnLogged && elapsed >= WARN_AFTER_MS) {
-      logLine('Waiting for elevation server to wake up…', 'log-info');
-      warnLogged = true;
+    if (healthStatus === 'error' && elapsed - lastRetryAt >= RETRY_EVERY_MS) {
+      lastRetryAt = elapsed;
+      doHealthFetch();
+    }
+    if (elapsed - lastWarnAt >= WARN_EVERY_MS) {
+      const remaining = Math.ceil((TIMEOUT_MS - elapsed) / 1000);
+      logLine(`Waiting for elevation server… (${remaining}s remaining)`, 'log-info');
+      lastWarnAt = elapsed;
     }
     await sleep(250);
   }
-  logLine('Elevation server is healthy', 'log-ok');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2497,6 +2512,38 @@ document.getElementById('agl-popup-input').addEventListener('keydown', e => {
   if (e.key === 'Escape') closeAglPopup();
 });
 
+// ── Chart crosshair state (set by map marker hover) ────────────────────────
+let _chartHoverIndex = null;
+
+const vertexHighlightPlugin = {
+  id: 'vertexHighlight',
+  afterDraw(chart) {
+    if (_chartHoverIndex === null) return;
+    const meta = chart.getDatasetMeta(1);
+    if (!meta || !meta.data[_chartHoverIndex]) return;
+    const pt    = meta.data[_chartHoverIndex];
+    const yAxis = chart.scales.y;
+    const c     = chart.ctx;
+    c.save();
+    c.beginPath();
+    c.moveTo(pt.x, yAxis.top);
+    c.lineTo(pt.x, yAxis.bottom);
+    c.lineWidth   = 1.5;
+    c.strokeStyle = 'rgba(255,255,255,0.5)';
+    c.setLineDash([4, 3]);
+    c.stroke();
+    c.beginPath();
+    c.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
+    c.fillStyle   = getCSSVar('--accent');
+    c.strokeStyle = '#fff';
+    c.lineWidth   = 1.5;
+    c.setLineDash([]);
+    c.fill();
+    c.stroke();
+    c.restore();
+  }
+};
+
 // ── Main buildPreview ───────────────────────────────────────────────────────
 function buildPreview() {
   if (!waypointData || waypointData.length === 0) return;
@@ -2579,6 +2626,31 @@ function buildPreview() {
     );
 
     marker.on('click', () => openAglPopup(wpIndex, vIdx, () => buildPreview()));
+
+    marker.on('mouseover', () => {
+      if (!previewChart) return;
+      // Find the chartPts index closest to this waypoint index
+      let best = 0, bestDist = Infinity;
+      const pts = previewChart._chartPts;
+      if (!pts) return;
+      for (let ci = 0; ci < pts.length; ci++) {
+        const d = Math.abs(pts[ci] - wpIndex);
+        if (d < bestDist) { bestDist = d; best = ci; }
+      }
+      _chartHoverIndex = best;
+      previewChart.tooltip.setActiveElements(
+        [{ datasetIndex: 0, index: best }, { datasetIndex: 1, index: best }],
+        { x: 0, y: 0 }
+      );
+      previewChart.update('none');
+    });
+    marker.on('mouseout', () => {
+      if (!previewChart) return;
+      _chartHoverIndex = null;
+      previewChart.tooltip.setActiveElements([], { x: 0, y: 0 });
+      previewChart.update('none');
+    });
+
     marker.addTo(mkGroup);
   });
 
@@ -2601,10 +2673,12 @@ function buildPreview() {
 
   // ── Chart ──────────────────────────────────────────────────────────────
   if (previewChart) { previewChart.destroy(); previewChart = null; }
+  _chartHoverIndex = null;
 
   const ctx = document.getElementById('preview-chart').getContext('2d');
   previewChart = new Chart(ctx, {
     type: 'line',
+    plugins: [vertexHighlightPlugin],
     data: {
       labels,
       datasets: [
@@ -2656,6 +2730,7 @@ function buildPreview() {
       }
     }
   });
+  previewChart._chartPts = chartPts;
 }
 
 document.getElementById('btn-preview-toggle').addEventListener('click', () => {
