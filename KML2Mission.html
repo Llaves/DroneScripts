@@ -72,6 +72,88 @@
     z-index: 1;
     width: 100%;
     max-width: 640px;
+    flex-shrink: 0;
+  }
+
+  /* ── Layout wrapper ──────────────────────────────────────────────────────── */
+  #layout {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ── Wide landscape with preview active: fixed full-viewport side-by-side ── */
+  @media (min-width: 1200px) and (orientation: landscape) {
+
+    /* Only shift layout when preview is actually visible */
+    body:has(#preview-section.visible) {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    body:has(#preview-section.visible) #layout {
+      position: fixed;
+      inset: 0;
+      flex-direction: row;
+      align-items: stretch;
+      overflow: hidden;
+    }
+
+    /* Container: fixed 640px, vertically scrollable */
+    body:has(#preview-section.visible) .container {
+      width: 640px;
+      flex-shrink: 0;
+      height: 100%;
+      overflow-y: auto;
+      padding: 2rem;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    body:has(#preview-section.visible) .container::-webkit-scrollbar { width: 4px; }
+    body:has(#preview-section.visible) .container::-webkit-scrollbar-thumb {
+      background: var(--border); border-radius: 2px;
+    }
+
+    /* Preview: fills all remaining width and full height */
+    body:has(#preview-section.visible) .preview-section {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      margin-top: 0;
+      padding: 2rem 2rem 2rem 0;
+      display: flex !important;
+      flex-direction: column;
+    }
+
+    body:has(#preview-section.visible) .preview-section .preview-toggle-row { display: none; }
+
+    body:has(#preview-section.visible) .preview-panels {
+      display: flex !important;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      gap: 1rem;
+    }
+
+    /* Map grows to fill whatever the chart doesn't use */
+    body:has(#preview-section.visible) .preview-map-wrap {
+      flex: 1;
+      min-height: 0;
+      height: auto;
+    }
+
+    /* Chart stays a fixed comfortable height */
+    body:has(#preview-section.visible) .preview-chart-wrap {
+      flex-shrink: 0;
+    }
+
+    body:has(#preview-section.visible) #preview-chart {
+      height: 180px !important;
+    }
   }
 
   /* ── Header ──────────────────────────────────────────────────────────────── */
@@ -108,7 +190,7 @@
 
   .subtitle {
     margin-top: 0.6rem;
-    font-size: 1.25rem;
+    font-size: 1.0rem;
     color: var(--muted);
     line-height: 1.6;
   }
@@ -772,6 +854,243 @@
   }
   .error-msg-close:hover { opacity: 1; }
 
+  /* ── Preview section ─────────────────────────────────────────────────────── */
+  .preview-section {
+    display: none;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1.25rem;
+    animation: slideIn 0.35s ease;
+  }
+  .preview-section.visible { display: flex; }
+
+  .preview-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .preview-toggle-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .btn-preview-toggle {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.45rem 0.85rem;
+    border-radius: 6px;
+    border: 1.5px solid var(--accent2);
+    background: transparent;
+    color: var(--accent2);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s, color 0.2s;
+  }
+  .btn-preview-toggle:hover { background: var(--accent2); color: #fff; }
+
+  .preview-panels {
+    display: none;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .preview-panels.open { display: flex; }
+
+  .preview-map-wrap {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1.5px solid var(--border);
+    box-shadow: var(--shadow);
+    height: 300px;
+    position: relative;
+  }
+
+  #preview-map {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Leaflet dark-mode tile filter */
+  [data-theme="dark"] #preview-map .leaflet-tile { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9); }
+  [data-theme="dark"] #preview-map .leaflet-container { background: #1a1d26; }
+
+  .preview-chart-wrap {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 1rem;
+    position: relative;
+  }
+
+  .preview-chart-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+  }
+
+  #preview-chart {
+    width: 100% !important;
+    height: 180px !important;
+  }
+
+  .preview-tooltip {
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.68rem !important;
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text) !important;
+    box-shadow: var(--shadow) !important;
+    border-radius: 6px !important;
+    line-height: 1.7 !important;
+  }
+
+  .preview-tooltip::before { display: none !important; }
+
+  /* ── Basemap switcher ────────────────────────────────────────────────────── */
+  .basemap-switcher {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    display: flex;
+    gap: 2px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 7px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  .basemap-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.35rem 0.6rem;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+
+  .basemap-btn:hover  { background: var(--surface2); color: var(--text); }
+  .basemap-btn.active { background: var(--accent2);  color: #fff; }
+
+  /* ── AGL edit popup ──────────────────────────────────────────────────────── */
+  .agl-popup-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0,0,0,0.45);
+    align-items: center;
+    justify-content: center;
+  }
+  .agl-popup-overlay.open { display: flex; }
+
+  .agl-popup {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.35);
+    padding: 1.5rem;
+    width: min(420px, calc(100vw - 2rem));
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    animation: slideIn 0.2s ease;
+  }
+
+  .agl-popup-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent2);
+  }
+
+  .agl-popup-info {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 2;
+  }
+
+  .agl-popup-info span { color: var(--text); }
+
+  .agl-popup-input-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .agl-popup-input-row input[type="number"] {
+    flex: 1;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 1rem;
+    padding: 0.6rem 0.85rem;
+    outline: none;
+    transition: border-color 0.2s;
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .agl-popup-input-row input[type="number"]::-webkit-inner-spin-button,
+  .agl-popup-input-row input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .agl-popup-input-row input[type="number"]:focus { border-color: var(--accent2); }
+
+  .agl-popup-input-row .unit-badge { flex-shrink: 0; }
+
+  .agl-popup-btns {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
+
+  .agl-popup-btns button {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  .agl-popup-btns .btn-apply {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  .agl-popup-btns .btn-apply:hover {
+    background: var(--accent2);
+    color: #fff;
+  }
+
+  .agl-popup-btns .btn-cancel:hover {
+    border-color: var(--text);
+    color: var(--text);
+  }
+
   .dropzone.dropzone-locked {
     opacity: 0.45;
     pointer-events: none;
@@ -894,25 +1213,29 @@
 </style>
 </head>
 <body>
+<div id="layout">
 <div class="container">
 
   <!-- ── Header ─────────────────────────────────────────────────────────── -->
   <div class="header-row">
     <div class="header-text">
-      <div class="eyebrow">// Mission Planning</div>
+      <div class="eyebrow">// Mission Planning &middot; v2.0</div>
       <h1>KML<span>2Mission</span></h1>
       <p class="subtitle">Convert KML paths to constant altitude AGL waypoint missions</p>
     </div>
-    <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode">
-      <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
-      <svg class="icon-sun" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="5"/>
-        <line x1="12" y1="1"  x2="12" y2="3"/>  <line x1="12" y1="21" x2="12" y2="23"/>
-        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-        <line x1="1" y1="12" x2="3" y2="12"/>  <line x1="21" y1="12" x2="23" y2="12"/>
-        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-      </svg>
-    </button>
+    <div style="display:flex;flex-direction:column;gap:0.4rem;flex-shrink:0;margin-top:0.25rem;align-items:flex-end">
+      <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode">
+        <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1"  x2="12" y2="3"/>  <line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/>  <line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+      <button class="btn-sm" id="btn-reset" title="Clear all files and start a new project" style="border-color:var(--danger);color:var(--danger);white-space:nowrap">↺ Reset</button>
+    </div>
   </div>
 
   <!-- ── Elevation Proxy URL panel ──────────────────────────────────────── -->
@@ -1134,7 +1457,30 @@
   </div>
 
   <footer> elevation data from opentopodata.org via proxy</footer>
-</div>
+</div><!-- /.container -->
+
+<!-- ── Preview section (map + chart) — lives outside .container for wide layout ── -->
+<div class="preview-section" id="preview-section">
+  <div class="preview-toggle-row">
+    <span class="preview-toggle-label">// Path Preview</span>
+    <button class="btn-preview-toggle" id="btn-preview-toggle">Show Preview</button>
+  </div>
+  <div class="preview-panels" id="preview-panels">
+    <div class="preview-map-wrap">
+      <div id="preview-map"></div>
+      <div class="basemap-switcher" id="basemap-switcher">
+        <button class="basemap-btn active" data-layer="satellite">Satellite</button>
+        <button class="basemap-btn" data-layer="topo">Topo</button>
+        <button class="basemap-btn" data-layer="street">Street</button>
+      </div>
+    </div>
+    <div class="preview-chart-wrap">
+      <div class="preview-chart-title">Elevation Profile — Ground vs Flight Altitude (m ASL)</div>
+      <canvas id="preview-chart"></canvas>
+    </div>
+  </div>
+</div><!-- /.preview-section -->
+</div><!-- /#layout -->
 
 <!-- ── Error toast (fixed, always on screen) ─────────────────────────────── -->
 <div class="error-msg" id="error-msg">
@@ -1142,7 +1488,26 @@
   <button class="error-msg-close" id="error-msg-close" title="Dismiss">✕</button>
 </div>
 
+<!-- ── AGL edit popup ─────────────────────────────────────────────────────── -->
+<div class="agl-popup-overlay" id="agl-popup-overlay">
+  <div class="agl-popup">
+    <div class="agl-popup-title">Edit Waypoint AGL</div>
+    <div class="agl-popup-info" id="agl-popup-info"></div>
+    <div class="agl-popup-input-row">
+      <input type="number" id="agl-popup-input" min="0" step="1" placeholder="e.g. 30">
+      <div class="unit-badge">m AGL</div>
+    </div>
+    <div class="agl-popup-btns">
+      <button class="btn-cancel" id="agl-popup-cancel">Cancel</button>
+      <button class="btn-apply" id="agl-popup-apply">Apply</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
 // Theme toggle
@@ -1150,6 +1515,67 @@
 document.getElementById('theme-toggle').addEventListener('click', () => {
   const html = document.documentElement;
   html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Reset — clear all files and return to a clean Phase 1 state
+// ═══════════════════════════════════════════════════════════════════════════
+document.getElementById('btn-reset').addEventListener('click', () => {
+  if (!confirm('Clear all loaded files and start a new project?')) return;
+
+  // ── State ──────────────────────────────────────────────────────────────
+  kmlText             = null;
+  waypointData        = null;
+  missionStartKmlText = null;
+  missionStartPoint   = null;
+  healthStatus        = null;
+  healthCallTime      = null;
+  window._originalWaypointData = null;
+  window._launchElev  = undefined;
+
+  // ── Path dropzone ──────────────────────────────────────────────────────
+  const dropzone = document.getElementById('dropzone');
+  dropzone.classList.remove('file-loaded');
+  dropzone.classList.add('dropzone-locked');
+  document.getElementById('file-input').value = '';
+  document.getElementById('file-info').style.display = 'none';
+  document.getElementById('file-name').textContent = '—';
+  document.getElementById('file-meta').textContent = '';
+  document.getElementById('dropzone-hint').textContent = 'Complete Phase 1 to unlock';
+
+  // ── Mission start dropzone ─────────────────────────────────────────────
+  document.getElementById('mission-dropzone').classList.remove('file-loaded');
+  document.getElementById('mission-start-input').value = '';
+  document.getElementById('mission-hint').textContent = 'or click to browse';
+
+  // ── Stats / elevation / thinning / ready banner ────────────────────────
+  document.getElementById('stats').style.display = 'none';
+  document.getElementById('stat-orig').textContent  = '—';
+  document.getElementById('stat-added').textContent = '—';
+  document.getElementById('stat-total').textContent = '—';
+  document.getElementById('btn-process').disabled = true;
+  document.getElementById('elev-section').classList.remove('visible');
+  document.getElementById('progress-wrap').classList.remove('visible');
+  document.getElementById('thin-section').classList.remove('visible');
+  document.getElementById('thin-result').textContent = '';
+  document.getElementById('thin-result').className = 'thin-result';
+  document.getElementById('ready-banner').classList.remove('visible');
+  document.getElementById('btn-export').disabled = true;
+  clearLog();
+
+  // ── Preview ────────────────────────────────────────────────────────────
+  document.getElementById('preview-section').classList.remove('visible');
+  document.getElementById('preview-panels').classList.remove('open');
+  document.getElementById('btn-preview-toggle').textContent = 'Show Preview';
+  previewOpen = false;
+  if (pathLayer)   { previewMap && previewMap.removeLayer(pathLayer);   pathLayer   = null; }
+  if (markerLayer) { previewMap && previewMap.removeLayer(markerLayer); markerLayer = null; }
+  if (previewChart) { previewChart.destroy(); previewChart = null; }
+
+  hideError();
+  updateDropzoneLock();
+  updateFetchButtonState();
+  updateExportButtonState();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1640,6 +2066,7 @@ document.getElementById('btn-fetch-elev').addEventListener('click', async () => 
     document.getElementById('thin-result').className = 'thin-result';
     document.getElementById('btn-thin').disabled = false;
     readyBanner.classList.add('visible');
+    showPreviewSection();
     updateExportButtonState();
 
   } catch (err) {
@@ -1932,6 +2359,345 @@ function showError(msg) {
 }
 function hideError() { errorMsg.classList.remove('visible'); }
 document.getElementById('error-msg-close').addEventListener('click', hideError);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Preview — Leaflet map + Chart.js elevation profile
+// ═══════════════════════════════════════════════════════════════════════════
+let previewMap    = null;
+let previewChart  = null;
+let pathLayer     = null;
+let markerLayer   = null;
+let baseTileLayer = null;
+let previewOpen   = false;
+let currentBasemap = 'satellite';
+
+function getCSSVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+// ── AGL height-above-ground colour scale (green→yellow→red) ────────────────
+// t=0 means low AGL (close to ground = danger → red), t=1 means high (safe → green)
+const AGL_RED   =  3;   // metres — full red
+const AGL_GREEN = 25;   // metres — full green
+
+// aglMeters is the actual height above ground in metres (absolute, not normalised)
+function aglToColor(aglMeters) {
+  const t = Math.max(0, Math.min(1, (aglMeters - AGL_RED) / (AGL_GREEN - AGL_RED)));
+  // red → yellow → green
+  if (t < 0.5) {
+    const u = t * 2;
+    return `rgb(220,${Math.round(80 + u * 140)},${Math.round(20 + u * 20)})`;
+  } else {
+    const u = (t - 0.5) * 2;
+    return `rgb(${Math.round(220 - u * 160)},220,${Math.round(40 + u * 20)})`;
+  }
+}
+
+// ── Basemap tile definitions ────────────────────────────────────────────────
+const BASEMAPS = {
+  satellite: {
+    url:   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attr:  'Tiles &copy; Esri',
+    maxZoom: 19
+  },
+  topo: {
+    url:   'https://tile.opentopomap.org/{z}/{x}/{y}.png',
+    attr:  '&copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+    maxZoom: 17
+  },
+  street: {
+    url:   'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attr:  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19
+  }
+};
+
+function switchBasemap(name) {
+  if (!previewMap) return;
+  if (baseTileLayer) { previewMap.removeLayer(baseTileLayer); baseTileLayer = null; }
+  const def = BASEMAPS[name];
+  baseTileLayer = L.tileLayer(def.url, { attribution: def.attr, maxZoom: def.maxZoom });
+  baseTileLayer.addTo(previewMap);
+  baseTileLayer.bringToBack();
+  currentBasemap = name;
+
+  // Update button states
+  document.querySelectorAll('.basemap-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.layer === name);
+  });
+}
+
+// Wire up basemap buttons
+document.getElementById('basemap-switcher').addEventListener('click', e => {
+  const btn = e.target.closest('.basemap-btn');
+  if (btn) switchBasemap(btn.dataset.layer);
+});
+
+// ── AGL edit popup ──────────────────────────────────────────────────────────
+let _aglEditTarget = null;   // { wpIndex (in waypointData), vertexIdx, marker, refreshFn }
+
+function openAglPopup(wpIndex, vertexIdx, refreshFn) {
+  const wp = waypointData[wpIndex];
+  const launchElev = missionStartPoint
+    ? missionStartPoint.groundElevation
+    : waypointData[0].groundElevation;
+  // AGL above ground at this specific waypoint
+  const currentAGL = Math.round((wp.heightAboveLaunch - (wp.groundElevation - launchElev)) * 10) / 10;
+  const absAlt     = Math.round((wp.heightAboveLaunch + launchElev) * 10) / 10;
+
+  document.getElementById('agl-popup-info').innerHTML =
+    `Vertex <span>${vertexIdx + 1}</span> &nbsp;|&nbsp; ` +
+    `Ground <span>${wp.groundElevation} m</span><br>` +
+    `Current AGL <span>${currentAGL} m</span> &nbsp;|&nbsp; ` +
+    `Flight alt <span>${absAlt} m ASL</span>`;
+
+  const inp = document.getElementById('agl-popup-input');
+  inp.value = currentAGL;
+
+  _aglEditTarget = { wpIndex, vertexIdx, refreshFn };
+  document.getElementById('agl-popup-overlay').classList.add('open');
+  setTimeout(() => { inp.focus(); inp.select(); }, 50);
+}
+
+function closeAglPopup() {
+  document.getElementById('agl-popup-overlay').classList.remove('open');
+  _aglEditTarget = null;
+}
+
+function applyAglEdit() {
+  if (!_aglEditTarget) return;
+  const newAGL = parseFloat(document.getElementById('agl-popup-input').value);
+  if (isNaN(newAGL) || newAGL < 0) { return; }
+
+  const { wpIndex } = _aglEditTarget;
+  const wp = waypointData[wpIndex];
+  const launchElev = missionStartPoint
+    ? missionStartPoint.groundElevation
+    : waypointData[0].groundElevation;
+
+  // Update only this waypoint's heightAboveLaunch — leave all others unchanged
+  wp.heightAboveLaunch = Math.round((wp.groundElevation - launchElev + newAGL) * 100) / 100;
+
+  closeAglPopup();
+  // Invalidate thinning cache since we've manually changed an altitude
+  window._originalWaypointData = null;
+  updateExportButtonState();
+
+  // Rebuild the preview to reflect the change
+  if (previewOpen) buildPreview();
+}
+
+document.getElementById('agl-popup-cancel').addEventListener('click', closeAglPopup);
+document.getElementById('agl-popup-apply').addEventListener('click', applyAglEdit);
+document.getElementById('agl-popup-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('agl-popup-overlay')) closeAglPopup();
+});
+document.getElementById('agl-popup-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter')  applyAglEdit();
+  if (e.key === 'Escape') closeAglPopup();
+});
+
+// ── Main buildPreview ───────────────────────────────────────────────────────
+function buildPreview() {
+  if (!waypointData || waypointData.length === 0) return;
+
+  const accent  = getCSSVar('--accent');
+  const accent2 = getCSSVar('--accent2');
+  const muted   = getCSSVar('--muted');
+
+  // ── Compute cumulative distance array ──────────────────────────────────
+  const cumDist = [0];
+  for (let i = 1; i < waypointData.length; i++) {
+    const d = haversine(
+      waypointData[i-1].lat, waypointData[i-1].lon,
+      waypointData[i].lat,   waypointData[i].lon
+    );
+    cumDist.push(cumDist[i-1] + d);
+  }
+
+  // ── Chart data (downsampled) ───────────────────────────────────────────
+  const MAX_CHART_PTS = 500;
+  const step = Math.max(1, Math.floor(waypointData.length / MAX_CHART_PTS));
+  const chartPts = [];
+  for (let i = 0; i < waypointData.length; i += step) chartPts.push(i);
+  if (chartPts[chartPts.length - 1] !== waypointData.length - 1) chartPts.push(waypointData.length - 1);
+
+  const launchElev = missionStartPoint
+    ? missionStartPoint.groundElevation
+    : waypointData[0].groundElevation;
+
+  const labels     = chartPts.map(i => (cumDist[i] / 1000).toFixed(2));
+  const groundData = chartPts.map(i => waypointData[i].groundElevation);
+  const flightData = chartPts.map(i => Math.round((waypointData[i].heightAboveLaunch + launchElev) * 100) / 100);
+
+  // ── Map ────────────────────────────────────────────────────────────────
+  if (!previewMap) {
+    previewMap = L.map('preview-map', { zoomControl: true, attributionControl: true });
+    switchBasemap(currentBasemap);
+  }
+
+  // Remove old path/marker layers
+  if (pathLayer)   { previewMap.removeLayer(pathLayer);   pathLayer   = null; }
+  if (markerLayer) { previewMap.removeLayer(markerLayer); markerLayer = null; }
+
+  const latlngs = waypointData.map(wp => [wp.lat, wp.lon]);
+
+  // AGL above each waypoint's own ground (not above launch) — this is true height above terrain
+  const aglValues = waypointData.map(wp => wp.heightAboveLaunch - (wp.groundElevation - launchElev));
+
+  // Build coloured segments keyed on absolute height-above-ground
+  const segGroup = L.layerGroup();
+  for (let i = 0; i < latlngs.length - 1; i++) {
+    const col = aglToColor(aglValues[i]);
+    L.polyline([latlngs[i], latlngs[i+1]], { color: col, weight: 3, opacity: 0.95 }).addTo(segGroup);
+  }
+  pathLayer = segGroup;
+  segGroup.addTo(previewMap);
+
+  // Vertex markers — click opens AGL editor
+  const vertices   = waypointData.map((wp, i) => ({ wp, i })).filter(({ wp }) => wp.isVertex);
+  const mkGroup    = L.layerGroup();
+  let vertexCounter = 0;
+
+  vertices.forEach(({ wp, i: wpIndex }) => {
+    const agl    = Math.round((aglValues[wpIndex]) * 10) / 10;
+    const absAlt = Math.round((wp.heightAboveLaunch + launchElev) * 10) / 10;
+    const vIdx   = vertexCounter++;
+    const dotCol = aglToColor(aglValues[wpIndex]);
+
+    const marker = L.circleMarker([wp.lat, wp.lon], {
+      radius: 6, color: '#fff', weight: 1.5,
+      fillColor: dotCol, fillOpacity: 1
+    });
+
+    marker.bindTooltip(
+      `<b>Vertex ${vIdx + 1}</b><br>` +
+      `Ground: ${wp.groundElevation} m<br>` +
+      `AGL: ${agl} m &nbsp; Flight: ${absAlt} m ASL<br>` +
+      `<i style="opacity:0.7">Click to edit AGL</i>`,
+      { className: 'preview-tooltip', sticky: false }
+    );
+
+    marker.on('click', () => openAglPopup(wpIndex, vIdx, () => buildPreview()));
+    marker.addTo(mkGroup);
+  });
+
+  // Mission start marker
+  if (missionStartPoint) {
+    L.circleMarker([missionStartPoint.lat, missionStartPoint.lon], {
+      radius: 7, color: '#fff', weight: 2, fillColor: '#f5a623', fillOpacity: 1
+    }).bindTooltip(
+      `<b>Mission Start</b><br>Ground: ${missionStartPoint.groundElevation} m`,
+      { className: 'preview-tooltip' }
+    ).addTo(mkGroup);
+  }
+
+  markerLayer = mkGroup;
+  mkGroup.addTo(previewMap);
+
+  const bounds = L.latLngBounds(latlngs);
+  previewMap.fitBounds(bounds, { padding: [24, 24] });
+  setTimeout(() => previewMap.invalidateSize(), 100);
+
+  // ── Chart ──────────────────────────────────────────────────────────────
+  if (previewChart) { previewChart.destroy(); previewChart = null; }
+
+  const ctx = document.getElementById('preview-chart').getContext('2d');
+  previewChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Ground Elevation',
+          data: groundData,
+          borderColor: muted,
+          backgroundColor: 'rgba(180,190,210,0.18)',
+          borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.3, order: 2
+        },
+        {
+          label: 'Flight Altitude',
+          data: flightData,
+          borderColor: accent,
+          backgroundColor: 'rgba(0,145,110,0.08)',
+          borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3, order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: { font: { family: "'Space Mono', monospace", size: 10 }, color: muted, boxWidth: 16, padding: 12 }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(17,19,24,0.9)',
+          titleFont: { family: "'Space Mono', monospace", size: 10 },
+          bodyFont:  { family: "'Space Mono', monospace", size: 10 },
+          callbacks: {
+            title: items => `${items[0].label} km`,
+            label: item  => ` ${item.dataset.label}: ${item.raw} m`
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Distance (km)', font: { family: "'Space Mono', monospace", size: 9 }, color: muted },
+          ticks: { font: { family: "'Space Mono', monospace", size: 9 }, color: muted, maxTicksLimit: 8 },
+          grid:  { color: 'rgba(120,130,160,0.1)' }
+        },
+        y: {
+          title: { display: true, text: 'Altitude (m ASL)', font: { family: "'Space Mono', monospace", size: 9 }, color: muted },
+          ticks: { font: { family: "'Space Mono', monospace", size: 9 }, color: muted, maxTicksLimit: 6 },
+          grid:  { color: 'rgba(120,130,160,0.1)' }
+        }
+      }
+    }
+  });
+}
+
+document.getElementById('btn-preview-toggle').addEventListener('click', () => {
+  const panels = document.getElementById('preview-panels');
+  const btn    = document.getElementById('btn-preview-toggle');
+  previewOpen  = !previewOpen;
+  panels.classList.toggle('open', previewOpen);
+  btn.textContent = previewOpen ? 'Hide Preview' : 'Show Preview';
+  if (previewOpen) buildPreview();
+});
+
+// Rebuild preview automatically when thinning completes (if open)
+document.getElementById('btn-thin').addEventListener('click', () => {
+  setTimeout(() => { if (previewOpen) buildPreview(); }, 50);
+});
+
+// Show preview section trigger — called after elevation fetch completes
+function showPreviewSection() {
+  document.getElementById('preview-section').classList.add('visible');
+  // In wide landscape mode the toggle is hidden — auto-open the panels
+  const wide = window.matchMedia('(min-width: 1200px) and (orientation: landscape)').matches;
+  if (wide) {
+    document.getElementById('preview-panels').classList.add('open');
+    previewOpen = true;
+    // Let the layout shift settle before building so Leaflet sees correct dimensions
+    setTimeout(() => buildPreview(), 100);
+  }
+}
+
+// Re-render chart colours on theme toggle
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  setTimeout(() => { if (previewOpen && previewChart) buildPreview(); }, 350);
+});
+
+// Invalidate Leaflet map size whenever the preview panel changes dimensions
+// (covers both the toggle open/close and the responsive layout shift)
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(() => {
+    if (previewMap) setTimeout(() => previewMap.invalidateSize(), 50);
+  }).observe(document.getElementById('preview-map'));
+}
+
 
 </script>
 </body>
