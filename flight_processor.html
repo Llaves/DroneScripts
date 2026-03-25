@@ -1506,30 +1506,29 @@
             const latH = headers.find(h => h.toLowerCase().includes('lat')) || headers[0];
             const lngH = headers.find(h => h.toLowerCase().includes('lng') || h.toLowerCase().includes('lon')) || headers[1];
             const coords = rows.map(r => `          ${r[lngH]},${r[latH]},${(r.FlightAltitude||0).toFixed(4)}`).join('\n');
-            return `
-									<?xml version="1.0" encoding="UTF-8"?>
-									<kml
-										xmlns="http://www.opengis.net/kml/2.2">
-										<Document>
-											<n>${name}</n>
-											<Style id="s">
-												<LineStyle>
-													<color>ff0000ff</color>
-													<width>3</width>
-												</LineStyle>
-											</Style>
-											<Placemark>
-												<n>${name}</n>
-												<styleUrl>#s</styleUrl>
-												<LineString>
-													<altitudeMode>absolute</altitudeMode>
-													<coordinates>
+            return `<?xml version="1.0" encoding="UTF-8"?>
+<kml
+  xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <n>${name}</n>
+    <Style id="s">
+      <LineStyle>
+        <color>ff0000ff</color>
+        <width>3</width>
+      </LineStyle>
+    </Style>
+    <Placemark>
+      <n>${name}</n>
+      <styleUrl>#s</styleUrl>
+      <LineString>
+        <altitudeMode>absolute</altitudeMode>
+        <coordinates>
 ${coords}
-        </coordinates>
-												</LineString>
-											</Placemark>
-										</Document>
-									</kml>`;
+</coordinates>
+                </LineString>
+              </Placemark>
+            </Document>
+          </kml>`;
           }
 
           function dlBlob(content, filename, mime) {
