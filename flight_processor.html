@@ -239,7 +239,7 @@
         border-radius: 6px;
         padding: 18px 22px;
         display: grid;
-        grid-template-columns: 1fr auto auto auto auto;
+        grid-template-columns: 1fr 1fr 1fr;
         gap: 12px;
         align-items: end;
         box-shadow: var(--shadow);
@@ -275,8 +275,21 @@
         border-color: var(--accent);
       }
 
-      .field select option {
-        background: var(--bg);
+      .field.checkbox-field {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 38px;
+        cursor: pointer;
+      }
+
+      .field.checkbox-field input {
+        width: auto;
+      }
+
+      .field.checkbox-field label {
+        margin-bottom: 0;
+        cursor: pointer;
       }
 
       .btn {
@@ -453,13 +466,6 @@
         background: rgba(180, 35, 24, .06);
       }
 
-      .url-check-msg.error a {
-        color: var(--red);
-        font-weight: 700;
-        cursor: pointer;
-        text-decoration: underline;
-      }
-
       .url-check-msg.ok {
         color: var(--green);
         border-color: var(--green);
@@ -540,6 +546,21 @@
 
       .log-info {
         color: var(--accent);
+      }
+
+      /* ── Download Section ── */
+      .download-section {
+        display: none;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 18px 22px;
+        box-shadow: var(--shadow);
+        transition: background .25s, border-color .25s;
+      }
+
+      .download-section.visible {
+        display: block;
       }
 
       .chart-section {
@@ -634,16 +655,11 @@
         color: #fff;
       }
 
-      [data-theme="light"] .xaxis-pill.active {
-        color: #fff;
-      }
-
       .chart-container {
         position: relative;
         height: 280px;
       }
 
-      /* ── PDF Title Dialog ─────────────────────────────────────────────────── */
       .modal-backdrop {
         display: none;
         position: fixed;
@@ -700,10 +716,6 @@
         margin-bottom: 18px;
       }
 
-      .modal input[type="text"]:focus {
-        border-color: var(--accent);
-      }
-
       .modal-footer {
         display: flex;
         justify-content: flex-end;
@@ -716,7 +728,7 @@
       <div class="logo">FP</div>
       <div>
         <h1>Flight Path Processor</h1>
-        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 1.7.1</p>
+        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 1.8</p>
       </div>
       <div class="header-right">
         <button class="theme-toggle" id="theme-toggle">
@@ -745,18 +757,6 @@
           </div>
         </div>
       </div>
-      <div style="display:flex;gap:12px;align-items:stretch;">
-        <div class="upload-zone" id="upload-zone" style="flex:1;">
-          <input type="file" id="file-input" accept=".csv">
-          <div class="upload-icon" id="upload-icon">↑</div>
-          <div class="upload-label">
-            <strong>Drop CSV file here</strong>
-          </div>
-          <div class="upload-sub">or click to browse</div>
-          <div class="upload-filename" id="upload-filename"></div>
-        </div>
-        <button class="btn btn-outline btn-reset-zone" id="btn-reset" title="Reset — restore page to original state" disabled>↺ Reset All</button>
-      </div>
       <div class="controls">
         <div class="field">
           <label>KML Path Title</label>
@@ -769,14 +769,22 @@
             <option value="aster30m">ASTER 30m (global)</option>
           </select>
         </div>
-        <div class="field">
-          <label>Download Options</label>
-          <div style="display:flex;gap:8px;">
-            <button class="btn btn-outline" id="btn-csv" disabled>↓ CSV</button>
-            <button class="btn btn-outline" id="btn-kml" disabled>↓ KML</button>
-            <button class="btn btn-outline" id="btn-pdf" disabled>⎙ PDF</button>
-          </div>
+        <div class="field checkbox-field">
+          <input type="checkbox" id="prefer-vps">
+          <label for="prefer-vps">Prefer VPS_height</label>
         </div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:stretch;">
+        <div class="upload-zone" id="upload-zone" style="flex:1;">
+          <input type="file" id="file-input" accept=".csv">
+          <div class="upload-icon" id="upload-icon">↑</div>
+          <div class="upload-label">
+            <strong>Drop CSV file here</strong>
+          </div>
+          <div class="upload-sub">or click to browse</div>
+          <div class="upload-filename" id="upload-filename"></div>
+        </div>
+        <button class="btn btn-outline btn-reset-zone" id="btn-reset" title="Reset — restore page to original state" disabled>↺ Reset All</button>
       </div>
       <div class="progress-section" id="progress-section">
         <div class="progress-header">
@@ -788,6 +796,18 @@
         </div>
         <div class="log-lines" id="log-lines"></div>
       </div>
+
+      <div class="download-section" id="download-section">
+        <div class="field">
+          <label>Download Options</label>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline" id="btn-csv" disabled>↓ CSV</button>
+            <button class="btn btn-outline" id="btn-kml" disabled>↓ KML</button>
+            <button class="btn btn-outline" id="btn-pdf" disabled>⎙ PDF</button>
+          </div>
+        </div>
+      </div>
+
       <div class="xaxis-toggle" id="xaxis-toggle" style="display:none;">
         <span class="xaxis-label">X-Axis</span>
         <div class="xaxis-pills">
@@ -821,7 +841,6 @@
       </div>
     </div>
 
-    <!-- PDF Title Dialog -->
     <div class="modal-backdrop" id="pdf-modal">
       <div class="modal">
         <div class="modal-title">⎙ Export to PDF</div>
@@ -873,15 +892,14 @@
         chart.options.plugins.tooltip.bodyColor = c.ttBody;
         chart.update();
       }
-      // ── State ────────────────────────────────────────────────────────────────
+
       let csvFile = null,
         processedData = null,
         chart1 = null,
         chart2 = null;
-      let healthStatus = null; // null = pending, 'ok' = ready, 'error' = failed
-      let healthCallTime = null; // timestamp when /health was called
-      let xAxisMode = 'dist'; // 'dist' | 'time'
-      // ── Elevation Proxy URL ───────────────────────────────────────────────────
+      let healthStatus = null;
+      let healthCallTime = null;
+      let xAxisMode = 'dist';
       const STORAGE_KEY = 'fpp_elevation_base';
       const $ = id => document.getElementById(id);
 
@@ -890,17 +908,11 @@
       }
 
       function loadStoredUrl() {
-        try {
-          return localStorage.getItem(STORAGE_KEY) || '';
-        } catch (e) {
-          return '';
-        }
+        try { return localStorage.getItem(STORAGE_KEY) || ''; } catch (e) { return ''; }
       }
 
       function saveUrl(url) {
-        try {
-          localStorage.setItem(STORAGE_KEY, url);
-        } catch (e) {}
+        try { localStorage.setItem(STORAGE_KEY, url); } catch (e) {}
       }
       let ELEVATION_BASE = loadStoredUrl();
 
@@ -956,44 +968,30 @@
         el.innerHTML = html;
         el.style.display = 'block';
       }
-      // Query a single DoH resolver. Returns true if the hostname resolves,
-      // false if NXDOMAIN, throws on network/timeout error.
+
       async function queryDoH(resolverUrl, hostname) {
         const url = `${resolverUrl}?name=${encodeURIComponent(hostname)}&type=A`;
         const resp = await fetch(url, {
-          headers: {
-            Accept: 'application/dns-json'
-          },
+          headers: { Accept: 'application/dns-json' },
           signal: AbortSignal.timeout(5000)
         });
         if (!resp.ok) throw new Error(`DoH HTTP ${resp.status}`);
         const data = await resp.json();
-        // Status 0 = NOERROR, 3 = NXDOMAIN
-        if (data.Status === 3) return false; // definitively does not exist
+        if (data.Status === 3) return false;
         if (data.Status !== 0) throw new Error(`DNS status ${data.Status}`);
         return true;
       }
-      // Race Google and Cloudflare DoH — whichever answers first wins.
-      // Returns { resolved: bool, source: string } or throws if both fail.
+
       async function checkDNS(hostname) {
-        const resolvers = [{
-          name: 'Google',
-          url: 'https://dns.google/resolve'
-        }, {
-          name: 'Cloudflare',
-          url: 'https://cloudflare-dns.com/dns-query'
-        }];
-        return Promise.any(resolvers.map(r => queryDoH(r.url, hostname).then(resolved => ({
-          resolved,
-          source: r.name
-        }))));
+        const resolvers = [{ name: 'Google', url: 'https://dns.google/resolve' }, { name: 'Cloudflare', url: 'https://cloudflare-dns.com/dns-query' }];
+        return Promise.any(resolvers.map(r => queryDoH(r.url, hostname).then(resolved => ({ resolved, source: r.name }))));
       }
+
       async function commitUrl(skipCheck = false) {
           const raw = $('url-input').value.trim();
           if (!raw) return;
           const clean = stripTrailingSlash(raw);
           if (!skipCheck) {
-            // Extract the hostname from the URL for DNS lookup
             let hostname;
             try {
               hostname = new URL(clean).hostname;
@@ -1003,29 +1001,23 @@
                 return;
               }
               $('btn-save-url').disabled = true;
-              setUrlCheckMsg('checking', `⟳ Resolving 
-									<strong>${hostname}</strong>…`);
+              setUrlCheckMsg('checking', `⟳ Resolving <strong>${hostname}</strong>…`);
               let result;
               try {
                 result = await checkDNS(hostname);
               } catch {
-                // Both resolvers failed — likely a network problem reaching DoH servers
                 $('btn-save-url').disabled = false;
-                setUrlCheckMsg('error', `⚠ Could not reach DNS resolvers — check your internet connection. ` + `
-									<a id="url-save-anyway">Save anyway</a>`);
+                setUrlCheckMsg('error', `⚠ Could not reach DNS resolvers — check your internet connection. <a id="url-save-anyway">Save anyway</a>`);
                 document.getElementById('url-save-anyway').addEventListener('click', () => commitUrl(true));
                 return;
               }
               $('btn-save-url').disabled = false;
               if (!result.resolved) {
-                setUrlCheckMsg('error', `⚠ Hostname 
-									<strong>${hostname}</strong> could not be resolved (NXDOMAIN via ${result.source}). ` + `
-									<a id="url-save-anyway">Save anyway</a>`);
+                setUrlCheckMsg('error', `⚠ Hostname <strong>${hostname}</strong> could not be resolved (NXDOMAIN via ${result.source}). <a id="url-save-anyway">Save anyway</a>`);
                 document.getElementById('url-save-anyway').addEventListener('click', () => commitUrl(true));
                 return;
               }
-              setUrlCheckMsg('ok', `✓ 
-									<strong>${hostname}</strong> resolved via ${result.source}`);
+              setUrlCheckMsg('ok', `✓ <strong>${hostname}</strong> resolved via ${result.source}`);
               await new Promise(r => setTimeout(r, 700));
             }
             ELEVATION_BASE = clean;
@@ -1034,20 +1026,11 @@
             setUrlCheckMsg(null);
             hideUrlEdit();
           }
+
           $('btn-edit-url').addEventListener('click', showUrlEdit);
           $('btn-save-url').addEventListener('click', () => commitUrl());
-          $('btn-cancel-url').addEventListener('click', () => {
-            setUrlCheckMsg(null);
-            hideUrlEdit();
-          });
-          $('url-input').addEventListener('keydown', e => {
-            if (e.key === 'Enter') commitUrl();
-            if (e.key === 'Escape') {
-              setUrlCheckMsg(null);
-              hideUrlEdit();
-            }
-          });
-          // Initialise display on load
+          $('btn-cancel-url').addEventListener('click', () => { setUrlCheckMsg(null); hideUrlEdit(); });
+          $('url-input').addEventListener('keydown', e => { if (e.key === 'Enter') commitUrl(); if (e.key === 'Escape') { setUrlCheckMsg(null); hideUrlEdit(); } });
           refreshUrlDisplay();
 
           function pingHealthEndpoint() {
@@ -1060,16 +1043,13 @@
             fetch(`${ELEVATION_BASE}/health`).then(r => r.json()).then(data => {
               healthStatus = (data.status === 'ok') ? 'ok' : 'error';
               if (healthStatus === 'ok') log('Elevation server is healthy', 'log-ok');
-            }).catch(() => {
-              healthStatus = 'error';
-            });
+            }).catch(() => { healthStatus = 'error'; });
           }
+
           async function waitForHealth() {
             const TIMEOUT_MS = 30000;
-            const WARN_EVERY_MS = 5000;
             const RETRY_EVERY_MS = 5000;
             const startedAt = Date.now();
-            let lastWarnAt = 0;
             let lastRetryAt = 0;
             while (healthStatus !== 'ok') {
               const elapsed = Date.now() - startedAt;
@@ -1081,24 +1061,14 @@
                 lastRetryAt = elapsed;
                 doHealthFetch();
               }
-              if (elapsed - lastWarnAt >= WARN_EVERY_MS) {
-                const remaining = Math.ceil((TIMEOUT_MS - elapsed) / 1000);
-                log(`Waiting for elevation server… (${remaining}s remaining)`, 'log-info');
-                lastWarnAt = elapsed;
-              }
               await sleep(250);
             }
           }
-          const uz = $('upload-zone'),
-            fi = $('file-input');
+
+          const uz = $('upload-zone'), fi = $('file-input');
           uz.addEventListener('click', () => fi.click());
-          fi.addEventListener('change', e => {
-            if (e.target.files[0]) handleFile(e.target.files[0]);
-          });
-          uz.addEventListener('dragover', e => {
-            e.preventDefault();
-            uz.classList.add('drag-over');
-          });
+          fi.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+          uz.addEventListener('dragover', e => { e.preventDefault(); uz.classList.add('drag-over'); });
           uz.addEventListener('dragleave', () => uz.classList.remove('drag-over'));
           uz.addEventListener('drop', e => {
             e.preventDefault();
@@ -1113,57 +1083,45 @@
             $('upload-icon').textContent = '✓';
             $('upload-filename').textContent = f.name;
             processedData = null;
+            $('download-section').classList.remove('visible'); //
             ['btn-csv', 'btn-kml', 'btn-dl-chart1', 'btn-dl-chart2', 'btn-pdf'].forEach(id => $(id).disabled = true);
             $('chart1-section').classList.remove('visible');
             $('chart2-section').classList.remove('visible');
             $('xaxis-toggle').style.display = 'none';
             clearLog();
             $('progress-section').classList.remove('visible');
-            pingHealthEndpoint(); // fire after clearLog so its response appears in the log
-            // Enable the reset button now that a file has been loaded
+            pingHealthEndpoint();
             $('btn-reset').disabled = false;
             setTimeout(processFile, 300);
           }
-          // ── Reset ────────────────────────────────────────────────────────────────
+
           function resetAll() {
-            // Destroy any active charts
-            if (chart1) {
-              chart1.destroy();
-              chart1 = null;
-            }
-            if (chart2) {
-              chart2.destroy();
-              chart2 = null;
-            }
-            // Clear all state
+            if (chart1) { chart1.destroy(); chart1 = null; }
+            if (chart2) { chart2.destroy(); chart2 = null; }
             csvFile = null;
             processedData = null;
             healthStatus = null;
             healthCallTime = null;
-            // Reset upload zone to original appearance
             uz.classList.remove('has-file', 'drag-over');
             $('upload-icon').textContent = '↑';
             $('upload-filename').textContent = '';
             fi.value = '';
-            // Reset controls to defaults
             $('kml-name').value = 'Flight Path';
             $('dataset').value = 'ned10m';
-            // Disable all action buttons
+            $('prefer-vps').checked = false;
             ['btn-csv', 'btn-kml', 'btn-dl-chart1', 'btn-dl-chart2', 'btn-pdf'].forEach(id => $(id).disabled = true);
-            // Hide progress bar and charts
             $('progress-section').classList.remove('visible');
+            $('download-section').classList.remove('visible'); //
             $('chart1-section').classList.remove('visible');
             $('chart2-section').classList.remove('visible');
             $('xaxis-toggle').style.display = 'none';
-            // Reset x-axis mode to distance
             xAxisMode = 'dist';
             document.querySelectorAll('.xaxis-pill').forEach(p => p.classList.toggle('active', p.dataset.axis === 'dist'));
             clearLog();
             setProgress(0);
-            // Disable reset button until a new file is loaded
             $('btn-reset').disabled = true;
           }
-          // ── X-axis toggle ─────────────────────────────────────────────────────────
+
           document.querySelectorAll('.xaxis-pill').forEach(pill => {
             pill.addEventListener('click', () => {
               const axis = pill.dataset.axis;
@@ -1173,6 +1131,7 @@
               if (processedData) renderCharts(processedData.rows, processedData.headers);
             });
           });
+
           $('btn-reset').addEventListener('click', resetAll);
 
           function log(msg, cls = '') {
@@ -1183,15 +1142,13 @@
             $('log-lines').scrollTop = 9999;
           }
 
-          function clearLog() {
-            $('log-lines').innerHTML = '';
-          }
+          function clearLog() { $('log-lines').innerHTML = ''; }
 
           function setProgress(pct) {
             $('progress-fill').style.width = pct + '%';
             $('progress-pct').textContent = Math.round(pct) + '%';
           }
-          // ── CSV parse ────────────────────────────────────────────────────────────
+
           function parseCSV(text) {
             const lines = text.trim().split(/\r?\n/);
             const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
@@ -1201,18 +1158,15 @@
               headers.forEach((h, i) => obj[h] = cols[i] ?? '');
               return obj;
             }).filter(r => Object.values(r).some(v => v !== ''));
-            return {
-              headers,
-              rows
-            };
+            return { headers, rows };
           }
-          // ── Phase 1 ──────────────────────────────────────────────────────────────
+
           function phase1(headers, rows) {
             if (headers.length < 9) throw new Error(`Need >= 9 columns, found ${headers.length}`);
             const EXPECTED = ['time_s', 'lat', 'lng', 'alt_m', 'distance_to_home_m', 'height_m', 'vps_height_m', 'altitude_m', 'speed_ms'];
             const bad = EXPECTED.map((name, i) => headers[i] !== name ? `col ${i}: expected "${name}", got "${headers[i]}"` : null).filter(Boolean);
             if (bad.length) throw new Error(`Unexpected headers — ${bad.join('; ')}`);
-            const kH = [0, 1, 2, 5, 7, 8].map(i => headers[i]);
+            const kH = [0, 1, 2, 5, 6, 7, 8].map(i => headers[i]);
             const lastCol = kH[kH.length - 1];
             const allH = [...kH, 'GndElev', 'Distance Along Path', 'FlightAltitude', 'HeightAboveGround'];
             const out = rows.map(row => {
@@ -1229,51 +1183,39 @@
               const v = parseFloat(rows[i][lastCol]) || 0;
               out[i]['Distance Along Path'] = out[i - 1]['Distance Along Path'] + 0.1 * v;
             }
-            return {
-              headers: allH,
-              rows: out
-            };
+            return { headers: allH, rows: out };
           }
-          // ── Elevation fetch via OpenTopoData.org via proxy ───────────────
+
           async function fetchElevationsBatch(locs, dataset) {
             const locStr = locs.map(([lat, lon]) => `${lat},${lon}`).join('|');
             const url = `${ELEVATION_BASE}/v1/${dataset}`;
             const resp = await fetch(url, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                locations: locStr
-              }) // Send as JSON object
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ locations: locStr })
             });
             if (!resp.ok) {
               const errorText = await resp.text();
               throw new Error(`HTTP ${resp.status}: ${errorText}`);
             }
             const data = await resp.json();
-            // Note: OpenTopoData returns uppercase "OK"
             if (data.status !== 'OK') throw new Error(`OpenTopoData: ${data.status}`);
             return data.results.map(r => r.elevation);
           }
 
-          function sleep(ms) {
-            return new Promise(r => setTimeout(r, ms));
-          }
-          // ── Phase 2 ──────────────────────────────────────────────────────────────
+          function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
           async function phase2(p1, dataset, onPct) {
-            const {
-              headers,
-              rows
-            } = p1;
+            const { headers, rows } = p1;
+            const preferVps = $('prefer-vps').checked;
             const findH = pat => headers.find(h => h.toLowerCase().includes(pat));
             const latH = findH('lat') || headers[0];
             const lngH = findH('lng') || findH('lon') || headers[1];
-            const heightH = findH('height') || headers[4];
+            const heightH = findH('height_m');
+            const vpsH = 'vps_height_m';
             const sel = rows.filter((_, i) => i % 10 === 0);
             const total = sel.length;
             log(`Selected ${total} rows (every 10th)`, 'log-info');
-            // Wait for elevation server to be ready before making any requests
             await waitForHealth();
             log('Elevation server ready', 'log-ok');
             const allElevs = [];
@@ -1287,7 +1229,6 @@
               const elevs = await fetchElevationsBatch(locs, dataset);
               allElevs.push(...elevs);
               onPct(20 + (allElevs.length / total) * 70);
-              // Small polite delay between batches
               if (b + BS < total) await sleep(300);
             }
             log(`Received ${allElevs.length} elevations`, 'log-ok');
@@ -1295,13 +1236,20 @@
             sel.forEach((row, i) => {
               const gnd = Math.round(allElevs[i] * 100) / 100;
               const h = parseFloat(row[heightH]) || 0;
+              const vps = parseFloat(row[vpsH]) || 0;
               row.GndElev = gnd;
               row.FlightAltitude = Math.round((h + launchElev) * 100) / 100;
-              row.HeightAboveGround = Math.round((row.FlightAltitude - gnd) * 100) / 100;
+              
+              let hag = Math.round((row.FlightAltitude - gnd) * 100) / 100;
+              if (preferVps && vps < 10) {
+                  hag = vps;
+              }
+              row.HeightAboveGround = hag;
+              delete row[vpsH];
             });
             return sel;
           }
-          // ── Main ─────────────────────────────────────────────────────────────────
+
           async function processFile() {
             if (!csvFile) return;
             $('progress-section').classList.add('visible');
@@ -1309,10 +1257,7 @@
             try {
               log(`Reading ${csvFile.name}...`, 'log-info');
               const text = await csvFile.text();
-              const {
-                headers,
-                rows
-              } = parseCSV(text);
+              const { headers, rows } = parseCSV(text);
               log(`Loaded ${rows.length} rows, ${headers.length} columns`);
               setProgress(5);
               log('Phase 1: column selection & distance...', 'log-info');
@@ -1322,11 +1267,8 @@
               log('Phase 2: fetching elevations from OpenTopoData.org via proxy ...', 'log-info');
               const finalRows = await phase2(p1, $('dataset').value, pct => setProgress(pct));
               setProgress(95);
-              processedData = {
-                headers: p1.headers,
-                rows: finalRows
-              };
-              renderCharts(finalRows, p1.headers);
+              processedData = { headers: p1.headers.filter(h => h !== 'vps_height_m'), rows: finalRows };
+              renderCharts(finalRows, processedData.headers);
               setProgress(100);
               log(`Complete — ${finalRows.length} output rows`, 'log-ok');
               $('btn-csv').disabled = false;
@@ -1336,90 +1278,29 @@
               setProgress(0);
             }
           }
-          // ── Charts ────────────────────────────────────────────────────────────────
+
           function makeChartOpts(xL, yL) {
             const c = chartThemeColors();
             return {
               responsive: true,
               maintainAspectRatio: false,
-              interaction: {
-                mode: 'index',
-                intersect: false
-              },
+              interaction: { mode: 'index', intersect: false },
               plugins: {
-                legend: {
-                  labels: {
-                    color: c.legend,
-                    font: {
-                      family: 'Barlow',
-                      size: 12
-                    },
-                    boxWidth: 18
-                  }
-                },
+                legend: { labels: { color: c.legend, font: { family: 'Barlow', size: 12 }, boxWidth: 18 } },
                 tooltip: {
-                  backgroundColor: c.ttBg,
-                  borderColor: c.ttBorder,
-                  borderWidth: 1,
-                  titleColor: c.ttTitle,
-                  bodyColor: c.ttBody,
-                  titleFont: {
-                    family: 'Roboto Mono',
-                    size: 11
-                  },
-                  bodyFont: {
-                    family: 'Barlow',
-                    size: 12
-                  },
-                  callbacks: {
-                    title: items => xL + ': ' + items[0].parsed.x.toFixed(1)                
-                  }
+                  backgroundColor: c.ttBg, borderColor: c.ttBorder, borderWidth: 1, titleColor: c.ttTitle, bodyColor: c.ttBody,
+                  titleFont: { family: 'Roboto Mono', size: 11 }, bodyFont: { family: 'Barlow', size: 12 },
+                  callbacks: { title: items => xL + ': ' + items[0].parsed.x.toFixed(1) }
                 }
               },
               scales: {
                 x: {
-                  type: 'linear',
-                  ticks: {
-                    color: c.dim,
-                    font: {
-                      family: 'Roboto Mono',
-                      size: 9
-                    },
-                    maxTicksLimit: 10
-                  },
-                  grid: {
-                    color: c.grid
-                  },
-                  title: {
-                    display: true,
-                    text: xL,
-                    color: c.label,
-                    font: {
-                      family: 'Barlow',
-                      size: 12
-                    }
-                  }
+                  type: 'linear', ticks: { color: c.dim, font: { family: 'Roboto Mono', size: 9 }, maxTicksLimit: 10 },
+                  grid: { color: c.grid }, title: { display: true, text: xL, color: c.label, font: { family: 'Barlow', size: 12 } }
                 },
                 y: {
-                  ticks: {
-                    color: c.dim,
-                    font: {
-                      family: 'Roboto Mono',
-                      size: 9
-                    }
-                  },
-                  grid: {
-                    color: c.grid
-                  },
-                  title: {
-                    display: true,
-                    text: yL,
-                    color: c.label,
-                    font: {
-                      family: 'Barlow',
-                      size: 12
-                    }
-                  }
+                  ticks: { color: c.dim, font: { family: 'Roboto Mono', size: 9 } }, grid: { color: c.grid },
+                  title: { display: true, text: yL, color: c.label, font: { family: 'Barlow', size: 12 } }
                 }
               }
             };
@@ -1429,41 +1310,18 @@
             const useTime = xAxisMode === 'time';
             const xLabel = useTime ? 'Time (s)' : 'Distance Along Path (m)';
             const xWord = useTime ? 'Time' : 'Distance Along Path';
-            // Use {x, y} point objects on a linear axis so Chart.js spaces points
-            // proportionally to their actual numeric x value rather than treating
-            // each row as an equal-width category slot.
-            // Both fields come directly from the phase2 output rows:
-            //   'time_s'              — kept from col 0 by phase1
-            //   'Distance Along Path' — computed by phase1 (0.1 * speed_ms accumulated)
             const xVal = r => useTime ? parseFloat(r['time_s']) || 0 : parseFloat(r['Distance Along Path']) || 0;
-            const pts = key => rows.map(r => ({
-              x: xVal(r),
-              y: r[key] ?? null
-            }));
+            const pts = key => rows.map(r => ({ x: xVal(r), y: r[key] ?? null }));
             if (chart1) chart1.destroy();
             chart1 = new Chart($('chart1').getContext('2d'), {
               type: 'scatter',
               data: {
                 datasets: [{
-                  label: 'Ground Elevation (m)',
-                  data: pts('GndElev'),
-                  borderColor: '#10b981',
-                  backgroundColor: 'rgba(16,185,129,.1)',
-                  borderWidth: 2,
-                  pointRadius: 0,
-                  fill: true,
-                  tension: .3,
-                  showLine: true
+                  label: 'Ground Elevation (m)', data: pts('GndElev'), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.1)',
+                  borderWidth: 2, pointRadius: 0, fill: true, tension: .3, showLine: true
                 }, {
-                  label: 'Flight Altitude (m)',
-                  data: pts('FlightAltitude'),
-                  borderColor: isDark ? '#00d4ff' : '#0080aa',
-                  backgroundColor: isDark ? 'rgba(0,212,255,.04)' : 'rgba(0,128,170,.04)',
-                  borderWidth: 2,
-                  pointRadius: 0,
-                  fill: false,
-                  tension: .3,
-                  showLine: true
+                  label: 'Flight Altitude (m)', data: pts('FlightAltitude'), borderColor: isDark ? '#00d4ff' : '#0080aa',
+                  backgroundColor: isDark ? 'rgba(0,212,255,.04)' : 'rgba(0,128,170,.04)', borderWidth: 2, pointRadius: 0, fill: false, tension: .3, showLine: true
                 }]
               },
               options: makeChartOpts(xLabel, 'Altitude (m)')
@@ -1473,104 +1331,58 @@
               type: 'scatter',
               data: {
                 datasets: [{
-                  label: 'Height Above Ground (m)',
-                  data: pts('HeightAboveGround'),
-                  borderColor: '#ff6b35',
-                  backgroundColor: 'rgba(255,107,53,.1)',
-                  borderWidth: 2,
-                  pointRadius: 0,
-                  fill: true,
-                  tension: .3,
-                  showLine: true
+                  label: 'Height Above Ground (m)', data: pts('HeightAboveGround'), borderColor: '#ff6b35', backgroundColor: 'rgba(255,107,53,.1)',
+                  borderWidth: 2, pointRadius: 0, fill: true, tension: .3, showLine: true
                 }]
               },
               options: makeChartOpts(xLabel, 'Height (m)')
             });
-            // Update subtitles to match the active x-axis
             document.querySelector('#chart1-section .chart-subtitle').textContent = `Ground Elevation & Flight Altitude vs ${xWord}`;
             document.querySelector('#chart2-section .chart-subtitle').textContent = `Height Above Ground vs ${xWord}`;
+            $('download-section').classList.add('visible'); //
             $('chart1-section').classList.add('visible');
             $('chart2-section').classList.add('visible');
             $('btn-dl-chart1').disabled = false;
             $('btn-dl-chart2').disabled = false;
             $('btn-pdf').disabled = false;
-            // Show the x-axis toggle above the charts
             $('xaxis-toggle').style.display = 'flex';
           }
-          // ── Export helpers ────────────────────────────────────────────────────────
-          function rowsToCSV(h, rows) {
-            return [h.join(','), ...rows.map(r => h.map(k => r[k] ?? '').join(','))].join('\n');
-          }
+
+          function rowsToCSV(h, rows) { return [h.join(','), ...rows.map(r => h.map(k => r[k] ?? '').join(','))].join('\n'); }
 
           function generateKML(rows, headers, name) {
             const latH = headers.find(h => h.toLowerCase().includes('lat')) || headers[0];
             const lngH = headers.find(h => h.toLowerCase().includes('lng') || h.toLowerCase().includes('lon')) || headers[1];
             const coords = rows.map(r => `          ${r[lngH]},${r[latH]},${(r.FlightAltitude||0).toFixed(4)}`).join('\n');
             return `<?xml version="1.0" encoding="UTF-8"?>
-<kml
-  xmlns="http://www.opengis.net/kml/2.2">
+<kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
     <n>${name}</n>
-    <Style id="s">
-      <LineStyle>
-        <color>ff0000ff</color>
-        <width>3</width>
-      </LineStyle>
-    </Style>
+    <Style id="s"><LineStyle><color>ff0000ff</color><width>3</width></LineStyle></Style>
     <Placemark>
-      <n>${name}</n>
-      <styleUrl>#s</styleUrl>
-      <LineString>
-        <altitudeMode>absolute</altitudeMode>
-        <coordinates>
+      <n>${name}</n><styleUrl>#s</styleUrl>
+      <LineString><altitudeMode>absolute</altitudeMode><coordinates>
 ${coords}
-</coordinates>
-                </LineString>
-              </Placemark>
-            </Document>
-          </kml>`;
+</coordinates></LineString></Placemark></Document></kml>`;
           }
 
           function dlBlob(content, filename, mime) {
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob([content], {
-              type: mime
-            }));
-            a.download = filename;
-            a.click();
+            a.href = URL.createObjectURL(new Blob([content], { type: mime }));
+            a.download = filename; a.click();
           }
 
           async function dlCanvas(chartObj, filename) {
-            // Disable animation and force a synchronous render
             const origAnim = chartObj.options.animation;
             chartObj.options.animation = false;
             chartObj.update('none');
-
-            // Wait for Firefox's compositor to flush the canvas buffer
-            await new Promise(resolve => {
-              requestAnimationFrame(() => setTimeout(resolve, 150));
-            });
-
+            await new Promise(resolve => { requestAnimationFrame(() => setTimeout(resolve, 150)); });
             const dataUrl = chartToDataURL(chartObj);
-
-            // Restore animation state
             chartObj.options.animation = origAnim;
-
             const a = document.createElement('a');
-            a.href = dataUrl;
-            a.download = filename;
-            a.click();
+            a.href = dataUrl; a.download = filename; a.click();
           }
-          // ── X-axis toggle ─────────────────────────────────────────────────────────
-          document.querySelectorAll('.xaxis-pill').forEach(pill => {
-            pill.addEventListener('click', () => {
-              const axis = pill.dataset.axis;
-              if (axis === xAxisMode) return;
-              xAxisMode = axis;
-              document.querySelectorAll('.xaxis-pill').forEach(p => p.classList.toggle('active', p.dataset.axis === axis));
-              if (processedData) renderCharts(processedData.rows, processedData.headers);
-            });
-          });
+
           $('btn-csv').addEventListener('click', () => {
             if (!processedData) return;
             dlBlob(rowsToCSV(processedData.headers, processedData.rows), csvFile.name.replace(/\.csv$/i, '') + '_processed.csv', 'text/csv');
@@ -1582,146 +1394,68 @@ ${coords}
           $('btn-dl-chart1').addEventListener('click', () => dlCanvas(chart1, 'elevation_profile.png'));
           $('btn-dl-chart2').addEventListener('click', () => dlCanvas(chart2, 'height_above_ground.png'));
 
-          // 2. UPDATED PDF FUNCTION
-          // ── Hardened Chart Capture for Firefox ────────────────────────────────────
-          /**
-           * Uses willReadFrequently to bypass Firefox GPU buffer clearing
-           * and adds an explicit redraw to ensure the buffer is populated.
-           */
           function chartToDataURL(chartObj) {
             const src = chartObj.canvas;
-            // 1. Force a synchronous render to ensure the source buffer is hot
             chartObj.render();
-            // 2. Create temp canvas with willReadFrequently to prevent blank exports in Firefox
             const tmp = document.createElement('canvas');
-            tmp.width = src.width;
-            tmp.height = src.height;
-            // This attribute is the key for Firefox/Chrome hardware acceleration issues
-            const ctx = tmp.getContext('2d', {
-              willReadFrequently: true
-            });
-            // 3. Ensure background is white (PDFs render transparent as black)
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, tmp.width, tmp.height);
-            // 4. Draw directly from the source canvas
+            tmp.width = src.width; tmp.height = src.height;
+            const ctx = tmp.getContext('2d', { willReadFrequently: true });
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, tmp.width, tmp.height);
             ctx.drawImage(src, 0, 0);
             return tmp.toDataURL('image/png', 1.0);
           }
+
           async function printChartsToPDF(pageTitle) {
             if (!processedData || !chart1 || !chart2) return;
             const btn = $('btn-pdf');
             const origText = btn.textContent;
-            btn.disabled = true;
-            btn.textContent = '⟳ Capturing...';
-            // 1. Turn off animations globally for the capture duration
+            btn.disabled = true; btn.textContent = '⟳ Capturing...';
             const origAnim1 = chart1.options.animation;
             const origAnim2 = chart2.options.animation;
-            chart1.options.animation = false;
-            chart2.options.animation = false;
-            chart1.update('none');
-            chart2.update('none');
-
-            // Force to light mode for PDF export to ensure consistent colors, then restore after
+            chart1.options.animation = false; chart2.options.animation = false;
+            chart1.update('none'); chart2.update('none');
             const wasDark = isDark;
-            if (wasDark) {
-              isDark = false;
-              updateChartTheme(chart1);
-              updateChartTheme(chart2);
-            }
-            // 2. CRITICAL: Wait for the next animation frame + a small buffer.
-            // This allows Firefox's compositor to finish the draw before we read.
-            await new Promise(resolve => {
-              requestAnimationFrame(() => {
-                setTimeout(resolve, 150);
-              });
-            });
+            if (wasDark) { isDark = false; updateChartTheme(chart1); updateChartTheme(chart2); }
+            await new Promise(resolve => { requestAnimationFrame(() => { setTimeout(resolve, 150); }); });
             try {
-              const {
-                jsPDF
-              } = window.jspdf;
-              const doc = new jsPDF({
-                orientation: 'landscape',
-                unit: 'mm',
-                format: 'letter'
-              });
-              const pageW = 279.4,
-                pageH = 215.9;
-              const marginX = 14,
-                marginY = 12;
-              const contentW = pageW - marginX * 2;
-              const chartTop = marginY + 17;
-              const gap = 5;
+              const { jsPDF } = window.jspdf;
+              const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
+              const pageW = 279.4, pageH = 215.9, marginX = 14, marginY = 12, contentW = pageW - marginX * 2, chartTop = marginY + 17, gap = 5;
               const chartH = (pageH - chartTop - marginY - gap) / 2;
-              // Capture using the hardened helper
-              const img1 = chartToDataURL(chart1);
-              const img2 = chartToDataURL(chart2);
-              // Header logic
+              const img1 = chartToDataURL(chart1); const img2 = chartToDataURL(chart2);
               const title = pageTitle || (csvFile ? csvFile.name.replace(/\.csv$/i, '') : 'Flight Path');
-              doc.setFont('helvetica', 'bold');
-              doc.setFontSize(14);
-              doc.setTextColor(15, 23, 42); // Use static dark colors for the PDF
-              doc.text(title, marginX, marginY + 5);
-              doc.setDrawColor(0, 94, 168);
-              doc.setLineWidth(0.5);
+              doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(15, 23, 42);
+              doc.text(title, marginX, marginY + 5); doc.setDrawColor(0, 94, 168); doc.setLineWidth(0.5);
               doc.line(marginX, marginY + 8, pageW - marginX, marginY + 8);
-              // Add Images to PDF
-              doc.setFontSize(8);
-              doc.text('ELEVATION PROFILE', marginX, chartTop + 4);
+              doc.setFontSize(8); doc.text('ELEVATION PROFILE', marginX, chartTop + 4);
               doc.addImage(img1, 'PNG', marginX, chartTop + 6, contentW, chartH - 6);
               const chart2Top = chartTop + chartH + gap;
               doc.text('HEIGHT ABOVE GROUND', marginX, chart2Top + 4);
               doc.addImage(img2, 'PNG', marginX, chart2Top + 6, contentW, chartH - 6);
-              const filename = (csvFile ? csvFile.name.replace(/\.csv$/i, '') : 'flight_charts') + '_charts.pdf';
-              doc.save(filename);
-            } catch (err) {
-              console.error('PDF export failed:', err);
-              alert('PDF export failed: ' + err.message);
-            } finally {
-              // 3. Restore original settings
-              if (wasDark) {
-                isDark = true;
-                updateChartTheme(chart1);
-                updateChartTheme(chart2);
-              }
-              chart1.options.animation = origAnim1;
-              chart2.options.animation = origAnim2;
-              chart1.update('none');
-              chart2.update('none');
-              btn.disabled = false;
-              btn.textContent = origText;
+              doc.save((csvFile ? csvFile.name.replace(/\.csv$/i, '') : 'flight_charts') + '_charts.pdf');
+            } catch (err) { alert('PDF export failed: ' + err.message); } finally {
+              if (wasDark) { isDark = true; updateChartTheme(chart1); updateChartTheme(chart2); }
+              chart1.options.animation = origAnim1; chart2.options.animation = origAnim2;
+              chart1.update('none'); chart2.update('none');
+              btn.disabled = false; btn.textContent = origText;
             }
           }
-          // ── PDF Title Dialog ──────────────────────────────────────────────────────
-          (function () {
-            const modal    = $('pdf-modal');
-            const titleInp = $('pdf-title-input');
 
+          (function () {
+            const modal = $('pdf-modal'), titleInp = $('pdf-title-input');
             function openPdfDialog() {
               if (!processedData || !chart1 || !chart2) return;
-              // Default: filename without extension
-              const defaultTitle = csvFile ? csvFile.name.replace(/\.[^.]+$/, '') : 'Flight Path';
-              titleInp.value = defaultTitle;
-              modal.classList.add('open');
-              titleInp.focus();
-              titleInp.select();
+              titleInp.value = csvFile ? csvFile.name.replace(/\.[^.]+$/, '') : 'Flight Path';
+              modal.classList.add('open'); titleInp.focus(); titleInp.select();
             }
-
-            function closePdfDialog() {
-              modal.classList.remove('open');
-            }
-
+            function closePdfDialog() { modal.classList.remove('open'); }
             $('btn-pdf').addEventListener('click', openPdfDialog);
             $('pdf-modal-cancel').addEventListener('click', closePdfDialog);
             modal.addEventListener('click', e => { if (e.target === modal) closePdfDialog(); });
-            titleInp.addEventListener('keydown', e => {
-              if (e.key === 'Enter')  $('pdf-modal-confirm').click();
-              if (e.key === 'Escape') closePdfDialog();
-            });
-
+            titleInp.addEventListener('keydown', e => { if (e.key === 'Enter') $('pdf-modal-confirm').click(); if (e.key === 'Escape') closePdfDialog(); });
             $('pdf-modal-confirm').addEventListener('click', () => {
               const pageTitle = titleInp.value.trim() || 'Flight Path';
-              closePdfDialog();
-              printChartsToPDF(pageTitle);
+              closePdfDialog(); printChartsToPDF(pageTitle);
             });
           })();
     </script>
