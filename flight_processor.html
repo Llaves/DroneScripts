@@ -728,7 +728,7 @@
       <div class="logo">FP</div>
       <div>
         <h1>Flight Path Processor</h1>
-        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 1.8</p>
+        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 1.8.1</p>
       </div>
       <div class="header-right">
         <button class="theme-toggle" id="theme-toggle">
@@ -770,7 +770,7 @@
           </select>
         </div>
         <div class="field checkbox-field">
-          <input type="checkbox" id="prefer-vps">
+          <input type="checkbox" checked="checked" id="prefer-vps">
           <label for="prefer-vps">Prefer VPS_height</label>
         </div>
       </div>
@@ -1108,7 +1108,7 @@
             fi.value = '';
             $('kml-name').value = 'Flight Path';
             $('dataset').value = 'ned10m';
-            $('prefer-vps').checked = false;
+            $('prefer-vps').checked = true;
             ['btn-csv', 'btn-kml', 'btn-dl-chart1', 'btn-dl-chart2', 'btn-pdf'].forEach(id => $(id).disabled = true);
             $('progress-section').classList.remove('visible');
             $('download-section').classList.remove('visible'); //
