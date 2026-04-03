@@ -138,7 +138,7 @@ def _sample_gee(pairs: list[tuple[float, float]]) -> list[dict]:
     # --- Build the two-band image -------------------------------------------
     # Band names will be "elevation_1m" and "elevation_10m" in the result.
     img_1m  = ee.ImageCollection("USGS/3DEP/1m").mosaic().rename("elevation_1m")
-    img_10m = ee.Image("USGS/3DEP/10m").rename("elevation_10m")
+    img_10m = ee.ImageCollection("USGS/3DEP/10m_collection").mosaic().rename("elevation_10m")
     stacked = img_1m.addBands(img_10m)
 
     # --- Build a FeatureCollection of points with an index property ---------
