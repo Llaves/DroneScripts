@@ -1326,9 +1326,21 @@
                 legend: { labels: { color: c.legend, font: { family: 'Barlow', size: 12 }, boxWidth: 18 } },
                 tooltip: {
                   backgroundColor: c.ttBg, borderColor: c.ttBorder, borderWidth: 1, titleColor: c.ttTitle, bodyColor: c.ttBody,
-                  titleFont: { family: 'Roboto Mono', size: 11 }, bodyFont: { family: 'Barlow', size: 12 },
-                  callbacks: { title: items => xL + ': ' + items[0].parsed.x.toFixed(1) }
-                }
+                  titleFont: { family: 'Roboto Mono', size: 13 }, bodyFont: { family: 'Barlow', size: 14 },
+                  callbacks: { title: items => xL + ': ' + items[0].parsed.x.toFixed(1),
+                    label: function(context) {
+                      let label = context.dataset.label || '';
+                      if (label) {
+                        label += ': ';
+                      }
+                      if (context.parsed.y !== null) {
+                        // This ensures only the Y value shows in the body
+                        label += context.parsed.y.toFixed(2); 
+                      }
+                      return label;
+                      } 
+                  }
+                }//end of tooltip
               },
               scales: {
                 x: {
