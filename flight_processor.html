@@ -728,7 +728,7 @@
       <div class="logo">FP</div>
       <div>
         <h1>Flight Path Processor</h1>
-        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 1.8.1</p>
+        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 2.0</p>
       </div>
       <div class="header-right">
         <button class="theme-toggle" id="theme-toggle">
@@ -765,8 +765,9 @@
         <div class="field">
           <label>Dataset</label>
           <select id="dataset">
-            <option value="ned10m">NED 10m (US only)</option>
-            <option value="aster30m">ASTER 30m (global)</option>
+            <option value="gee3dep" selected>Google Earth Engine 1m/10m (US only)</option>
+            <option value="ned10m">OpenTopoData NED 10m (US only)</option>
+            <option value="aster30m">OpenTopoData ASTER 30m (global)</option>
           </select>
         </div>
         <div class="field checkbox-field">
@@ -1107,7 +1108,7 @@
             $('upload-filename').textContent = '';
             fi.value = '';
             $('kml-name').value = 'Flight Path';
-            $('dataset').value = 'ned10m';
+            $('dataset').value = 'gee3dep';
             $('prefer-vps').checked = true;
             ['btn-csv', 'btn-kml', 'btn-dl-chart1', 'btn-dl-chart2', 'btn-pdf'].forEach(id => $(id).disabled = true);
             $('progress-section').classList.remove('visible');
@@ -1199,8 +1200,25 @@
               throw new Error(`HTTP ${resp.status}: ${errorText}`);
             }
             const data = await resp.json();
-            if (data.status !== 'OK') throw new Error(`OpenTopoData: ${data.status}`);
+            if (data.status !== 'OK') throw new Error(`OpenTopoData (${dataset}): ${data.status}`);
             return data.results.map(r => r.elevation);
+          }
+
+          async function fetchElevationsBatchGEE(locs) {
+            const locStr = locs.map(([lat, lon]) => `${lat},${lon}`).join('|');
+            const url = `${ELEVATION_BASE}/gee/elevation`;
+            const resp = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ locations: locStr })
+            });
+            if (!resp.ok) {
+              const errorText = await resp.text();
+              throw new Error(`HTTP ${resp.status}: ${errorText}`);
+            }
+            const data = await resp.json();
+            if (data.status !== 'OK') throw new Error(`GEE: ${data.status}`);
+            return data.results.map(r => ({ elevation: r.elevation, resolution: r.resolution }));
           }
 
           function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -1208,6 +1226,7 @@
           async function phase2(p1, dataset, onPct) {
             const { headers, rows } = p1;
             const preferVps = $('prefer-vps').checked;
+            const useGEE = dataset === 'gee3dep';
             const findH = pat => headers.find(h => h.toLowerCase().includes(pat));
             const latH = findH('lat') || headers[0];
             const lngH = findH('lng') || findH('lon') || headers[1];
@@ -1219,19 +1238,32 @@
             await waitForHealth();
             log('Elevation server ready', 'log-ok');
             const allElevs = [];
-            const BS = 100;
+            const allResolutions = [];
+            const BS = useGEE ? 500 : 100;
             const totalB = Math.ceil(total / BS);
             for (let b = 0; b < total; b += BS) {
               const batch = sel.slice(b, b + BS);
               const bn = Math.floor(b / BS) + 1;
               log(`Fetching batch ${bn}/${totalB} (${batch.length} pts)...`);
               const locs = batch.map(r => [parseFloat(r[latH]), parseFloat(r[lngH])]);
-              const elevs = await fetchElevationsBatch(locs, dataset);
-              allElevs.push(...elevs);
+              if (useGEE) {
+                const results = await fetchElevationsBatchGEE(locs);
+                allElevs.push(...results.map(r => r.elevation));
+                allResolutions.push(...results.map(r => r.resolution));
+              } else {
+                const elevs = await fetchElevationsBatch(locs, dataset);
+                allElevs.push(...elevs);
+              }
               onPct(20 + (allElevs.length / total) * 70);
               if (b + BS < total) await sleep(300);
             }
             log(`Received ${allElevs.length} elevations`, 'log-ok');
+            if (useGEE) {
+              const count1m  = allResolutions.filter(r => r === '1m').length;
+              const count10m = allResolutions.filter(r => r === '10m').length;
+              const countNull = allResolutions.filter(r => r === 'null').length;
+              log(`Resolution summary — 1m: ${count1m}  10m: ${count10m}  no data: ${countNull}`, 'log-info');
+            }
             const launchElev = allElevs[0];
             sel.forEach((row, i) => {
               const gnd = Math.round(allElevs[i] * 100) / 100;
@@ -1239,15 +1271,16 @@
               const vps = parseFloat(row[vpsH]) || 0;
               row.GndElev = gnd;
               row.FlightAltitude = Math.round((h + launchElev) * 100) / 100;
-              
+
               let hag = Math.round((row.FlightAltitude - gnd) * 100) / 100;
               if (preferVps && vps < 10) {
                   hag = vps;
               }
               row.HeightAboveGround = hag;
+              if (useGEE) row.ElevResolution = allResolutions[i] ?? '';
               delete row[vpsH];
             });
-            return sel;
+            return { rows: sel, useGEE };
           }
 
           async function processFile() {
@@ -1264,10 +1297,14 @@
               const p1 = phase1(headers, rows);
               log(`Phase 1 done — ${p1.rows.length} rows`);
               setProgress(20);
-              log('Phase 2: fetching elevations from OpenTopoData.org via proxy ...', 'log-info');
-              const finalRows = await phase2(p1, $('dataset').value, pct => setProgress(pct));
+              const elevDataset = $('dataset').value;
+              const elevSource = elevDataset === 'gee3dep' ? 'Google Earth Engine' : 'OpenTopoData.org';
+              log(`Phase 2: fetching elevations from ${elevSource} via proxy ...`, 'log-info');
+              const { rows: finalRows, useGEE } = await phase2(p1, $('dataset').value, pct => setProgress(pct));
               setProgress(95);
-              processedData = { headers: p1.headers.filter(h => h !== 'vps_height_m'), rows: finalRows };
+              let outHeaders = p1.headers.filter(h => h !== 'vps_height_m');
+              if (useGEE) outHeaders = [...outHeaders, 'ElevResolution'];
+              processedData = { headers: outHeaders, rows: finalRows };
               renderCharts(finalRows, processedData.headers);
               setProgress(100);
               log(`Complete — ${finalRows.length} output rows`, 'log-ok');
