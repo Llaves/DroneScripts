@@ -8,7 +8,6 @@ import ee
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import base64
 
 VERSION = "2.0 (GEE dual-resolution support)"
 
@@ -69,7 +68,6 @@ def _init_ee():
         # --- Option 2: raw JSON in env var -----------------------------------
         else:
             sa_json = os.environ.get("GEE_SERVICE_ACCOUNT_JSON", "").strip()
-            sa_json = base64.b64decode(sa_json).decode("utf-8")
             print(sa_json)
             if not sa_json:
                 print("WARNING: neither GEE_KEY_FILE nor GEE_SERVICE_ACCOUNT_JSON is set — "
