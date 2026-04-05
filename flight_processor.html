@@ -728,7 +728,7 @@
       <div class="logo">FP</div>
       <div>
         <h1>Flight Path Processor</h1>
-        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 2.1</p>
+        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 2.2</p>
       </div>
       <div class="header-right">
         <button class="theme-toggle" id="theme-toggle">
@@ -1093,6 +1093,8 @@
             $('progress-section').classList.remove('visible');
             pingHealthEndpoint();
             $('btn-reset').disabled = false;
+            //disable the dropzone to prevent multiple simultaneous processing attempts, will be re-enabled in resetAll()
+            uz.classList.add('disabled');
             setTimeout(processFile, 300);
           }
 
@@ -1103,7 +1105,7 @@
             processedData = null;
             healthStatus = null;
             healthCallTime = null;
-            uz.classList.remove('has-file', 'drag-over');
+            uz.classList.remove('has-file', 'drag-over', 'disabled');
             $('upload-icon').textContent = '↑';
             $('upload-filename').textContent = '';
             fi.value = '';
@@ -1120,6 +1122,8 @@
             document.querySelectorAll('.xaxis-pill').forEach(p => p.classList.toggle('active', p.dataset.axis === 'dist'));
             clearLog();
             setProgress(0);
+            if (chart1) chart1.destroy(); 
+            if (chart2) chart2.destroy();
             $('btn-reset').disabled = true;
           }
 
@@ -1273,6 +1277,7 @@
               row.FlightAltitude = Math.round((h + launchElev) * 100) / 100;
 
               let hag = Math.round((row.FlightAltitude - gnd) * 100) / 100;
+              // If VPS height is available and preferred, and seems reasonable (<10 m), use it instead of the calculated HAG
               if (preferVps && vps < 10) {
                   hag = vps;
               }
