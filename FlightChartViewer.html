@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Chart Viewer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+      :root {
+        --bg: #f7f9fc;
+        --surface: #ffffff;
+        --surface2: #eef3f9;
+        --border: #b8c7d9;
+        --accent: #01508d;
+        --text: #0a0a0a;
+        --text-dim: #47586d;
+        --green: #0f766e;
+        --red: #b42318;
+        --shadow: 0 2px 10px rgba(15, 28, 46, 0.08);
+      }
+
+      [data-theme="light"] .field input,
+      [data-theme="light"] .field select {
+        background: #ffffff;
+      }
+
+      [data-theme="dark"] {
+        --bg: #0a0e17;
+        --surface: #111827;
+        --surface2: #1a2236;
+        --border: #243048;
+        --accent: #00d4ff;
+        --text: #e2e8f0;
+        --text-dim: #d1d7df;
+        --green: #10b981;
+        --red: #ef4444;
+        --shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Barlow', sans-serif;
+        min-height: 100vh;
+        padding: 0 0 60px;
+        transition: background .25s, color .25s;
+      }
+
+      [data-theme="dark"] body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,212,255,.012) 2px, rgba(0,212,255,.012) 4px);
+        pointer-events: none;
+        z-index: 1000;
+      }
+
+      header {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 16px 32px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        position: relative;
+        box-shadow: var(--shadow);
+        transition: background .25s, border-color .25s;
+      }
+
+      header::after {
+        content: '';
+        position: absolute;
+        bottom: 0; left: 0; right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      }
+
+      .logo {
+        width: 36px; height: 36px;
+        display: grid;
+        place-items: center;
+        color: var(--accent);
+        flex-shrink: 0;
+        transition: all .25s;
+      }
+
+      header h1 {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--accent);
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        transition: color .25s;
+      }
+
+      header p {
+        font-size: 12px;
+        color: var(--text-dim);
+        letter-spacing: .5px;
+        margin-top: 2px;
+        transition: color .25s;
+      }
+
+      .header-right { margin-left: auto; }
+
+      .theme-toggle {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 5px 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-family: 'Roboto Mono', monospace;
+        font-size: 10px;
+        letter-spacing: 1px;
+        color: var(--text-dim);
+        transition: all .2s;
+        white-space: nowrap;
+      }
+
+      .theme-toggle:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 36px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+
+      /* ── Upload Zone ── */
+      .upload-zone {
+        border: 2px dashed var(--border);
+        background: var(--surface);
+        border-radius: 6px;
+        padding: 48px 40px;
+        text-align: center;
+        cursor: pointer;
+        transition: all .2s;
+        flex: 1;
+      }
+
+      .upload-zone:hover,
+      .upload-zone.drag-over {
+        border-color: var(--accent);
+        background: var(--surface2);
+      }
+
+      .upload-zone.has-file {
+        border-color: var(--green);
+        border-style: solid;
+      }
+
+      .upload-icon {
+        width: 50px; height: 50px;
+        margin: 0 auto 14px;
+        border: 2px solid var(--text-dim);
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 20px;
+        color: var(--text-dim);
+        transition: all .2s;
+      }
+
+      .upload-zone:hover .upload-icon {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .upload-zone.has-file .upload-icon {
+        border-color: var(--green);
+        color: var(--green);
+      }
+
+      .upload-label {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 16px;
+        color: var(--text-dim);
+      }
+
+      .upload-label strong { color: var(--text); }
+
+      .upload-sub {
+        font-size: 14px;
+        color: var(--text-dim);
+        margin-top: 5px;
+      }
+
+      .upload-filename {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 12px;
+        color: var(--green);
+        margin-top: 8px;
+      }
+
+      #file-input { display: none; }
+
+      /* ── Buttons ── */
+      .btn {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 14px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        padding: 10px 16px;
+        border: 1px solid;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all .15s;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: transparent;
+      }
+
+      .btn-outline {
+        border-color: var(--border);
+        color: var(--text-dim);
+      }
+
+      .btn-outline:hover:not(:disabled) {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .btn:disabled {
+        opacity: .3;
+        cursor: not-allowed;
+      }
+
+      .btn-accent {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .btn-accent:hover:not(:disabled) {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .btn-reset-zone {
+        border-color: var(--border);
+        color: var(--text-dim);
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        padding: 16px 12px;
+        align-self: stretch;
+        height: auto;
+        justify-content: center;
+      }
+
+      .btn-reset-zone:hover:not(:disabled) {
+        border-color: var(--red);
+        color: var(--red);
+      }
+
+      /* ── Status Banner ── */
+      .status-banner {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
+        border-radius: 6px;
+        padding: 11px 18px;
+        font-size: 14px;
+        color: var(--text-dim);
+        display: none;
+        transition: background .25s, border-color .25s;
+      }
+
+      .status-banner.visible { display: block; }
+      .status-banner.error { border-left-color: var(--red); color: var(--red); }
+      .status-banner.ok { border-left-color: var(--green); color: var(--green); }
+
+      /* ── Download Section ── */
+      .download-section {
+        display: none;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 18px 22px;
+        box-shadow: var(--shadow);
+        transition: background .25s, border-color .25s;
+      }
+
+      .download-section.visible { display: block; }
+
+      .field label {
+        display: block;
+        font-family: 'Roboto Mono', monospace;
+        font-size: 14px;
+        color: var(--text);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+      }
+
+      /* ── X-Axis Toggle ── */
+      .xaxis-toggle {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 14px 22px;
+        display: none;
+        align-items: center;
+        gap: 16px;
+        box-shadow: var(--shadow);
+        transition: background .25s, border-color .25s;
+      }
+
+      .xaxis-toggle.visible { display: flex; }
+
+      .xaxis-label {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 11px;
+        color: var(--text-dim);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .xaxis-pills {
+        display: flex;
+        gap: 0;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+
+      .xaxis-pill {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 10px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        padding: 8px 18px;
+        border: none;
+        background: transparent;
+        color: var(--text-dim);
+        cursor: pointer;
+        transition: all .15s;
+        white-space: nowrap;
+      }
+
+      .xaxis-pill:not(:last-child) { border-right: 1px solid var(--border); }
+
+      .xaxis-pill:hover:not(.active) {
+        background: var(--surface2);
+        color: var(--text);
+      }
+
+      .xaxis-pill.active {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      /* ── Chart Sections ── */
+      .chart-section {
+        display: none;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 22px 22px 18px;
+        box-shadow: var(--shadow);
+        transition: background .25s, border-color .25s;
+      }
+
+      .chart-section.visible { display: block; }
+
+      .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 18px;
+      }
+
+      .chart-title {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 14px;
+        color: var(--text);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
+
+      .chart-subtitle {
+        font-size: 14px;
+        color: var(--text-dim);
+        margin-top: 4px;
+      }
+
+      .chart-container {
+        position: relative;
+        height: 280px;
+      }
+
+      /* ── KML name input ── */
+      .kml-name-input {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: 'Barlow', sans-serif;
+        font-size: 14px;
+        padding: 11px 12px;
+        border-radius: 4px;
+        outline: none;
+        transition: border-color .2s, background .25s, color .25s;
+        width: 220px;
+        box-sizing: border-box;
+        line-height: 1;
+      }
+
+      .kml-name-input:focus { border-color: var(--accent); }
+      .kml-name-input:disabled { opacity: .3; }
+
+      .export-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .kml-name-label {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 12px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        white-space: nowrap;
+      }
+
+      /* ── Modal ── */
+      .modal-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.55);
+        z-index: 2000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal-backdrop.open { display: flex; }
+
+      .modal {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 28px 28px 22px;
+        width: min(420px, 90vw);
+        box-shadow: 0 8px 40px rgba(0,0,0,.45);
+      }
+
+      .modal-title {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 12px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 16px;
+      }
+
+      .modal label {
+        display: block;
+        font-family: 'Roboto Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        margin-bottom: 7px;
+      }
+
+      .modal input[type="text"] {
+        width: 100%;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: 'Barlow', sans-serif;
+        font-size: 14px;
+        padding: 9px 12px;
+        border-radius: 4px;
+        outline: none;
+        transition: border-color .2s;
+        margin-bottom: 18px;
+      }
+
+      .modal input[type="text"]:focus { border-color: var(--accent); }
+
+      .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="logo"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 48 48"><path fill="currentColor" fill-rule="evenodd" d="m31.57 19.103l-2.29 4.672l2.541 4.987a7 7 0 1 1-3.006 2.956L24 29.163l-4.815 2.555a7 7 0 1 1-3.006-2.956l2.541-4.986l-2.29-4.673a7 7 0 1 1 2.895-3.1L24 18.388l4.675-2.385a7 7 0 1 1 2.895 3.1M40 13a5 5 0 0 1-7.548 4.303l1.443-2.946a1.75 1.75 0 1 0-.535-.745l-2.902 1.481A5 5 0 1 1 40 13m-22.458 2.093a5 5 0 1 0-1.994 2.21l-1.443-2.946a1.75 1.75 0 1 1 .535-.745zm-2.271 15.451a5 5 0 1 0 2.147 2.112l-2.872 1.524a1.75 1.75 0 1 1-.751-.74zm15.311 2.112a5 5 0 1 0 2.147-2.112l1.476 2.896a1.75 1.75 0 1 1-.751.74z" clip-rule="evenodd"/></svg></div>
+      <div>
+        <h1>Flight Chart Viewer</h1>
+        <p>Elevation profile &middot; Height above ground &middot; v 1.0 &middot; Powered by FlightPathProcessor</p>
+      </div>
+      <div class="header-right">
+        <button class="theme-toggle" id="theme-toggle">
+          <span id="theme-icon">🌙</span>
+          <span id="theme-label">Dark Mode</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="main">
+      <!-- Status banner for errors / info -->
+      <div class="status-banner" id="status-banner"></div>
+
+      <!-- Upload zone -->
+      <div style="display:flex;gap:12px;align-items:stretch;">
+        <div class="upload-zone" id="upload-zone">
+          <input type="file" id="file-input" accept=".csv">
+          <div class="upload-icon" id="upload-icon">↑</div>
+          <div class="upload-label"><strong>Drop processed CSV here</strong></div>
+          <div class="upload-sub">or click to browse &mdash; expects flight_processor output</div>
+          <div class="upload-filename" id="upload-filename"></div>
+        </div>
+        <button class="btn btn-outline btn-reset-zone" id="btn-reset" title="Reset to initial state" disabled>↺ Reset</button>
+      </div>
+
+      <!-- X-axis toggle (shown after load) -->
+      <div class="xaxis-toggle" id="xaxis-toggle">
+        <span class="xaxis-label">X-Axis</span>
+        <div class="xaxis-pills">
+          <button class="xaxis-pill active" id="pill-dist" data-axis="dist">Distance Along Path</button>
+          <button class="xaxis-pill" id="pill-time" data-axis="time">Time (seconds)</button>
+        </div>
+      </div>
+
+      <!-- Chart 1 — Elevation Profile -->
+      <div class="chart-section" id="chart1-section">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Elevation Profile</div>
+            <div class="chart-subtitle" id="chart1-subtitle">Ground Elevation &amp; Flight Altitude vs Distance Along Path</div>
+          </div>
+          <button class="btn btn-outline" id="btn-dl-chart1" disabled>↓ PNG</button>
+        </div>
+        <div class="chart-container">
+          <canvas id="chart1"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 2 — Height Above Ground -->
+      <div class="chart-section" id="chart2-section">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Height Above Ground</div>
+            <div class="chart-subtitle" id="chart2-subtitle">Height Above Ground vs Distance Along Path</div>
+          </div>
+          <button class="btn btn-outline" id="btn-dl-chart2" disabled>↓ PNG</button>
+        </div>
+        <div class="chart-container">
+          <canvas id="chart2"></canvas>
+        </div>
+      </div>
+
+      <!-- Download section -->
+      <div class="download-section" id="download-section">
+        <div class="field">
+          <label>Export</label>
+          <div class="export-row">
+            <button class="btn btn-outline" id="btn-kml" disabled>↓ KML</button>
+            <div style="display:flex;flex-direction:column;gap:4px;align-self:flex-end;">
+              <span class="kml-name-label">Path Name</span>
+              <input type="text" class="kml-name-input" id="kml-name" placeholder="Flight Path" value="Flight Path" disabled>
+            </div>
+            <button class="btn btn-outline" id="btn-pdf" disabled style="align-self:flex-end;">⎙ PDF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PDF title modal -->
+    <div class="modal-backdrop" id="pdf-modal">
+      <div class="modal">
+        <div class="modal-title">⎙ Export to PDF</div>
+        <label for="pdf-title-input">Page Title</label>
+        <input type="text" id="pdf-title-input" placeholder="Flight Path" spellcheck="false" autocomplete="off">
+        <div class="modal-footer">
+          <button class="btn btn-outline" id="pdf-modal-cancel">Cancel</button>
+          <button class="btn btn-accent" id="pdf-modal-confirm">Generate PDF</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ── Theme ──────────────────────────────────────────────────────────────
+      let isDark = false;
+      const $ = id => document.getElementById(id);
+
+      $('theme-toggle').addEventListener('click', () => {
+        isDark = !isDark;
+        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+        $('theme-icon').textContent = isDark ? '☀️' : '🌙';
+        $('theme-label').textContent = isDark ? 'Light Mode' : 'Dark Mode';
+        if (chart1) updateChartTheme(chart1);
+        if (chart2) updateChartTheme(chart2);
+      });
+
+      function chartThemeColors() {
+        return {
+          dim:      isDark ? '#475569' : '#050505',
+          grid:     isDark ? '#1e2d45' : '#b0b0b0',
+          label:    isDark ? '#64748b' : '#050505',
+          legend:   isDark ? '#94a3b8' : '#36454F',
+          ttBg:     isDark ? '#1a2236' : '#ffffff',
+          ttBorder: isDark ? '#243048' : '#36454F',
+          ttTitle:  isDark ? '#e2e8f0' : '#1a2535',
+          ttBody:   isDark ? '#94a3b8' : '#36454F',
+        };
+      }
+
+      function updateChartTheme(chart) {
+        const c = chartThemeColors();
+        chart.options.scales.x.ticks.color = c.dim;
+        chart.options.scales.y.ticks.color = c.dim;
+        chart.options.scales.x.grid.color  = c.grid;
+        chart.options.scales.y.grid.color  = c.grid;
+        chart.options.scales.x.title.color = c.label;
+        chart.options.scales.y.title.color = c.label;
+        chart.options.plugins.legend.labels.color        = c.legend;
+        chart.options.plugins.tooltip.backgroundColor    = c.ttBg;
+        chart.options.plugins.tooltip.borderColor        = c.ttBorder;
+        chart.options.plugins.tooltip.titleColor         = c.ttTitle;
+        chart.options.plugins.tooltip.bodyColor          = c.ttBody;
+        chart.update();
+      }
+
+      // ── State ──────────────────────────────────────────────────────────────
+      let csvFile = null;
+      let loadedRows = null;
+      let chart1 = null;
+      let chart2 = null;
+      let xAxisMode = 'dist';
+
+      // ── Helpers ────────────────────────────────────────────────────────────
+      function showStatus(msg, type = '') {
+        const el = $('status-banner');
+        el.textContent = msg;
+        el.className = 'status-banner visible' + (type ? ' ' + type : '');
+      }
+
+      function hideStatus() {
+        $('status-banner').className = 'status-banner';
+      }
+
+      // ── CSV parsing ────────────────────────────────────────────────────────
+      function parseCSV(text) {
+        const lines = text.trim().split(/\r?\n/);
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        const rows = lines.slice(1).map(line => {
+          const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+          const obj = {};
+          headers.forEach((h, i) => obj[h] = cols[i] ?? '');
+          return obj;
+        }).filter(r => Object.values(r).some(v => v !== ''));
+        return { headers, rows };
+      }
+
+      // ── Validate that required columns are present ─────────────────────────
+      const REQUIRED_COLS = ['GndElev', 'FlightAltitude', 'HeightAboveGround', 'Distance Along Path'];
+
+      function validateHeaders(headers) {
+        const missing = REQUIRED_COLS.filter(c => !headers.includes(c));
+        return missing;
+      }
+
+      // ── Chart options factory ──────────────────────────────────────────────
+      function makeChartOpts(xL, yL) {
+        const c = chartThemeColors();
+        return {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              labels: { color: c.legend, font: { family: 'Barlow', size: 12 }, boxWidth: 18 }
+            },
+            tooltip: {
+              backgroundColor: c.ttBg, borderColor: c.ttBorder, borderWidth: 1,
+              titleColor: c.ttTitle, bodyColor: c.ttBody,
+              titleFont: { family: 'Roboto Mono', size: 13 },
+              bodyFont:  { family: 'Barlow', size: 14 },
+              callbacks: {
+                title: items => xL + ': ' + items[0].parsed.x.toFixed(1),
+                label: function(context) {
+                  let label = context.dataset.label || '';
+                  if (label) label += ': ';
+                  if (context.parsed.y !== null) label += context.parsed.y.toFixed(2);
+                  return label;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'linear',
+              ticks: { color: c.dim, font: { family: 'Roboto Mono', size: 9 }, maxTicksLimit: 10 },
+              grid:  { color: c.grid },
+              title: { display: true, text: xL, color: c.label, font: { family: 'Barlow', size: 12 } }
+            },
+            y: {
+              ticks: { color: c.dim, font: { family: 'Roboto Mono', size: 9 } },
+              grid:  { color: c.grid },
+              title: { display: true, text: yL, color: c.label, font: { family: 'Barlow', size: 12 } }
+            }
+          }
+        };
+      }
+
+      // ── Render charts ──────────────────────────────────────────────────────
+      function renderCharts(rows) {
+        const useTime = xAxisMode === 'time';
+        const hasTime = rows.length > 0 && rows[0]['time_s'] !== undefined;
+        const xLabel  = useTime ? 'Time (s)' : 'Distance Along Path (m)';
+        const xWord   = useTime ? 'Time' : 'Distance Along Path';
+        const xVal    = r => useTime ? (parseFloat(r['time_s']) || 0) : (parseFloat(r['Distance Along Path']) || 0);
+        const pts     = key => rows.map(r => ({ x: xVal(r), y: parseFloat(r[key]) || null }));
+
+        if (chart1) chart1.destroy();
+        chart1 = new Chart($('chart1').getContext('2d'), {
+          type: 'scatter',
+          data: {
+            datasets: [
+              {
+                label: 'Ground Elevation (m)',
+                data: pts('GndElev'),
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16,185,129,.1)',
+                borderWidth: 2, pointRadius: 0, fill: true, tension: .3, showLine: true
+              },
+              {
+                label: 'Flight Altitude (m)',
+                data: pts('FlightAltitude'),
+                borderColor: isDark ? '#00d4ff' : '#0080aa',
+                backgroundColor: isDark ? 'rgba(0,212,255,.04)' : 'rgba(0,128,170,.04)',
+                borderWidth: 2, pointRadius: 0, fill: false, tension: .3, showLine: true
+              }
+            ]
+          },
+          options: makeChartOpts(xLabel, 'Altitude (m)')
+        });
+
+        if (chart2) chart2.destroy();
+        chart2 = new Chart($('chart2').getContext('2d'), {
+          type: 'scatter',
+          data: {
+            datasets: [
+              {
+                label: 'Height Above Ground (m)',
+                data: pts('HeightAboveGround'),
+                borderColor: '#ff6b35',
+                backgroundColor: 'rgba(255,107,53,.1)',
+                borderWidth: 2, pointRadius: 0, fill: true, tension: .3, showLine: true
+              }
+            ]
+          },
+          options: makeChartOpts(xLabel, 'Height (m)')
+        });
+
+        $('chart1-subtitle').textContent = `Ground Elevation & Flight Altitude vs ${xWord}`;
+        $('chart2-subtitle').textContent = `Height Above Ground vs ${xWord}`;
+
+        $('chart1-section').classList.add('visible');
+        $('chart2-section').classList.add('visible');
+        $('download-section').classList.add('visible');
+        $('xaxis-toggle').classList.add('visible');
+        $('btn-dl-chart1').disabled = false;
+        $('btn-dl-chart2').disabled = false;
+        $('btn-pdf').disabled = false;
+        $('btn-kml').disabled = false;
+        $('kml-name').disabled = false;
+
+        // Hide time pill if no time column
+        if (!hasTime) {
+          $('pill-time').style.display = 'none';
+          if (xAxisMode === 'time') {
+            xAxisMode = 'dist';
+            $('pill-dist').classList.add('active');
+            $('pill-time').classList.remove('active');
+          }
+        } else {
+          $('pill-time').style.display = '';
+        }
+      }
+
+      // ── Load file ──────────────────────────────────────────────────────────
+      async function loadFile(file) {
+        if (!file || !file.name.toLowerCase().endsWith('.csv')) {
+          showStatus('Please drop a .csv file.', 'error');
+          return;
+        }
+        csvFile = file;
+        hideStatus();
+
+        try {
+          const text = await file.text();
+          const { headers, rows } = parseCSV(text);
+          const missing = validateHeaders(headers);
+          if (missing.length) {
+            showStatus(`Missing required columns: ${missing.join(', ')} — make sure this is a flight_processor output CSV.`, 'error');
+            return;
+          }
+
+          loadedRows = rows;
+
+          // Update upload zone
+          const zone = $('upload-zone');
+          zone.classList.add('has-file');
+          $('upload-icon').textContent = '✓';
+          $('upload-filename').textContent = file.name + ` — ${rows.length} rows`;
+          $('btn-reset').disabled = false;
+
+          renderCharts(rows);
+          showStatus(`Loaded ${rows.length} rows from "${file.name}".`, 'ok');
+        } catch (err) {
+          showStatus('Error reading file: ' + err.message, 'error');
+        }
+      }
+
+      // ── Upload zone events ─────────────────────────────────────────────────
+      const zone = $('upload-zone');
+      const fileInput = $('file-input');
+
+      zone.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+      zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+      zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+      });
+
+      // ── Reset ──────────────────────────────────────────────────────────────
+      $('btn-reset').addEventListener('click', () => {
+        csvFile = null; loadedRows = null;
+        if (chart1) { chart1.destroy(); chart1 = null; }
+        if (chart2) { chart2.destroy(); chart2 = null; }
+        zone.classList.remove('has-file', 'drag-over');
+        $('upload-icon').textContent = '↑';
+        $('upload-filename').textContent = '';
+        fileInput.value = '';
+        $('btn-reset').disabled = true;
+        $('btn-dl-chart1').disabled = true;
+        $('btn-dl-chart2').disabled = true;
+        $('btn-pdf').disabled = true;
+        $('btn-kml').disabled = true;
+        $('kml-name').disabled = true;
+        $('chart1-section').classList.remove('visible');
+        $('chart2-section').classList.remove('visible');
+        $('download-section').classList.remove('visible');
+        $('xaxis-toggle').classList.remove('visible');
+        xAxisMode = 'dist';
+        $('pill-dist').classList.add('active');
+        $('pill-time').classList.remove('active');
+        hideStatus();
+      });
+
+      // ── X-axis toggle ──────────────────────────────────────────────────────
+      document.querySelectorAll('.xaxis-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+          xAxisMode = btn.dataset.axis;
+          document.querySelectorAll('.xaxis-pill').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          if (loadedRows) renderCharts(loadedRows);
+        });
+      });
+
+      // ── KML export ─────────────────────────────────────────────────────────
+      function generateKML(rows, name) {
+        const latH = Object.keys(rows[0]).find(h => h.toLowerCase() === 'lat') || 'lat';
+        const lngH = Object.keys(rows[0]).find(h => h.toLowerCase() === 'lng' || h.toLowerCase() === 'lon') || 'lng';
+        const coords = rows.map(r =>
+          `          ${r[lngH]},${r[latH]},${(parseFloat(r['FlightAltitude']) || 0).toFixed(4)}`
+        ).join('\n');
+        return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>${name}</name>
+    <Style id="s"><LineStyle><color>ff0000ff</color><width>3</width></LineStyle></Style>
+    <Placemark>
+      <name>${name}</name><styleUrl>#s</styleUrl>
+      <LineString><altitudeMode>absolute</altitudeMode><coordinates>
+${coords}
+      </coordinates></LineString></Placemark></Document></kml>`;
+      }
+
+      function dlBlob(content, filename, mime) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([content], { type: mime }));
+        a.download = filename; a.click();
+      }
+
+      $('btn-kml').addEventListener('click', () => {
+        if (!loadedRows) return;
+        const name = $('kml-name').value.trim() || 'Flight Path';
+        const baseName = csvFile ? csvFile.name.replace(/\.csv$/i, '') : 'flight';
+        dlBlob(generateKML(loadedRows, name), baseName + '_path.kml', 'application/vnd.google-earth.kml+xml');
+      });
+
+      // ── PNG download helpers ───────────────────────────────────────────────
+      function chartToDataURL(chartObj) {
+        const src = chartObj.canvas;
+        chartObj.render();
+        const tmp = document.createElement('canvas');
+        tmp.width = src.width; tmp.height = src.height;
+        const ctx = tmp.getContext('2d', { willReadFrequently: true });
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, tmp.width, tmp.height);
+        ctx.drawImage(src, 0, 0);
+        return tmp.toDataURL('image/png', 1.0);
+      }
+
+      async function dlCanvas(chartObj, filename) {
+        const origAnim = chartObj.options.animation;
+        chartObj.options.animation = false;
+        chartObj.update('none');
+        await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 150)));
+        const dataUrl = chartToDataURL(chartObj);
+        chartObj.options.animation = origAnim;
+        const a = document.createElement('a');
+        a.href = dataUrl; a.download = filename; a.click();
+      }
+
+      $('btn-dl-chart1').addEventListener('click', () => dlCanvas(chart1, 'elevation_profile.png'));
+      $('btn-dl-chart2').addEventListener('click', () => dlCanvas(chart2, 'height_above_ground.png'));
+
+      // ── PDF export ─────────────────────────────────────────────────────────
+      async function printChartsToPDF(pageTitle) {
+        if (!chart1 || !chart2) return;
+        const btn = $('btn-pdf');
+        const origText = btn.textContent;
+        btn.disabled = true; btn.textContent = '⟳ Capturing...';
+
+        const origAnim1 = chart1.options.animation;
+        const origAnim2 = chart2.options.animation;
+        chart1.options.animation = false; chart2.options.animation = false;
+        chart1.update('none'); chart2.update('none');
+
+        const wasDark = isDark;
+        if (wasDark) {
+          isDark = false;
+          updateChartTheme(chart1); updateChartTheme(chart2);
+        }
+        await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 150)));
+
+        try {
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
+          const pageW = 279.4, pageH = 215.9, marginX = 14, marginY = 12;
+          const contentW = pageW - marginX * 2;
+          const chartTop = marginY + 17, gap = 5;
+          const chartH = (pageH - chartTop - marginY - gap) / 2;
+
+          const img1 = chartToDataURL(chart1);
+          const img2 = chartToDataURL(chart2);
+          const title = pageTitle || (csvFile ? csvFile.name.replace(/\.[^.]+$/, '') : 'Flight Path');
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(14); doc.setTextColor(15, 23, 42);
+          doc.text(title, marginX, marginY + 5);
+          doc.setDrawColor(0, 94, 168); doc.setLineWidth(0.5);
+          doc.line(marginX, marginY + 8, pageW - marginX, marginY + 8);
+          doc.setFontSize(8);
+          doc.text('ELEVATION PROFILE', marginX, chartTop + 4);
+          doc.addImage(img1, 'PNG', marginX, chartTop + 6, contentW, chartH - 6);
+          const chart2Top = chartTop + chartH + gap;
+          doc.text('HEIGHT ABOVE GROUND', marginX, chart2Top + 4);
+          doc.addImage(img2, 'PNG', marginX, chart2Top + 6, contentW, chartH - 6);
+          doc.save((csvFile ? csvFile.name.replace(/\.[^.]+$/, '') : 'flight_charts') + '_charts.pdf');
+        } catch (err) {
+          alert('PDF export failed: ' + err.message);
+        } finally {
+          if (wasDark) {
+            isDark = true;
+            updateChartTheme(chart1); updateChartTheme(chart2);
+          }
+          chart1.options.animation = origAnim1; chart2.options.animation = origAnim2;
+          chart1.update('none'); chart2.update('none');
+          btn.disabled = false; btn.textContent = origText;
+        }
+      }
+
+      // PDF modal
+      (function () {
+        const modal = $('pdf-modal');
+        const titleInp = $('pdf-title-input');
+
+        function openPdfDialog() {
+          if (!chart1 || !chart2) return;
+          titleInp.value = csvFile ? csvFile.name.replace(/\.[^.]+$/, '') : 'Flight Path';
+          modal.classList.add('open');
+          titleInp.focus(); titleInp.select();
+        }
+
+        function closePdfDialog() { modal.classList.remove('open'); }
+
+        $('btn-pdf').addEventListener('click', openPdfDialog);
+        $('pdf-modal-cancel').addEventListener('click', closePdfDialog);
+        modal.addEventListener('click', e => { if (e.target === modal) closePdfDialog(); });
+        titleInp.addEventListener('keydown', e => {
+          if (e.key === 'Enter') $('pdf-modal-confirm').click();
+          if (e.key === 'Escape') closePdfDialog();
+        });
+        $('pdf-modal-confirm').addEventListener('click', () => {
+          const pageTitle = titleInp.value.trim() || 'Flight Path';
+          closePdfDialog();
+          printChartsToPDF(pageTitle);
+        });
+      })();
+    </script>
+  </body>
+</html>
