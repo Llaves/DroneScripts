@@ -1257,7 +1257,7 @@
       <div class="proxy-dataset-row">
         <span class="proxy-panel-label">Dataset</span>
         <select id="dataset-select">
-          <option value="ned10m">NED 10m (US only)</option>
+          <option value="gee3dep">Google Earth Engine 1m/10m (US only)</option>
           <option value="aster30m">ASTER 30m (global)</option>
         </select>
       </div>
@@ -1588,7 +1588,7 @@ function stripSlash(url) { return url.trim().replace(/\/+$/, ''); }
 
 function loadStoredUrl()     { try { return localStorage.getItem(STORAGE_KEY) || ''; } catch(e) { return ''; } }
 function saveProxyUrl(url)   { try { localStorage.setItem(STORAGE_KEY, url); } catch(e) {} }
-function loadStoredDataset() { try { return localStorage.getItem(DATASET_KEY) || 'ned10m'; } catch(e) { return 'ned10m'; } }
+function loadStoredDataset() { try { return localStorage.getItem(DATASET_KEY) || 'gee3dep'; } catch(e) { return 'gee3dep'; } }
 function saveDataset(val)    { try { localStorage.setItem(DATASET_KEY, val); } catch(e) {} }
 
 let ELEVATION_BASE = loadStoredUrl();
@@ -1971,17 +1971,17 @@ function updateFetchButtonState() {
   btn.disabled = !(waypointData && waypointData.length > 0 && ELEVATION_BASE);
 }
 
-async function fetchElevationsBatch(locs) {
-  const dataset = document.getElementById('dataset-select').value;
-  const resp = await fetch(`${ELEVATION_BASE}/v1/${dataset}`, {
+async function fetchElevationsBatchGEE(locs) {
+  const locStr = locs.map(([lat, lon]) => `${lat},${lon}`).join('|');
+  const resp = await fetch(`${ELEVATION_BASE}/gee/elevation`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ locations: locs.map(([lat,lon]) => `${lat},${lon}`).join('|') })
+    body: JSON.stringify({ locations: locStr })
   });
   if (!resp.ok) { const t = await resp.text(); throw new Error(`HTTP ${resp.status}: ${t}`); }
   const data = await resp.json();
-  if (data.status !== 'OK') throw new Error(`OpenTopoData: ${data.status}`);
-  return data.results.map(r => r.elevation);
+  if (data.status !== 'OK') throw new Error(`GEE: ${data.status}`);
+  return data.results.map(r => ({ elevation: r.elevation, resolution: r.resolution }));
 }
 
 function logLine(msg, cls = '') {
@@ -2020,28 +2020,35 @@ document.getElementById('btn-fetch-elev').addEventListener('click', async () => 
   const allPts  = waypointData.map(wp => [wp.lat, wp.lon]);
   if (msPoint) { allPts.push([msPoint.lat, msPoint.lon]); }
 
+  const GEE_BATCH = 500;
   const total   = allPts.length;
-  const totalB  = Math.ceil(total / BATCH_SIZE);
+  const totalB  = Math.ceil(total / GEE_BATCH);
   logLine(`${total} point${total !== 1 ? 's' : ''} to query (${waypointData.length} waypoints${msPoint ? ' + 1 mission start' : ''})`, 'log-info');
 
-  const allElevs = [];
+  const allElevs       = [];
+  const allResolutions = [];
 
   try {
     // Wait for health ping fired at file-drop time (or just above)
     await waitForHealth();
 
     // Batch fetch
-    for (let b = 0; b < total; b += BATCH_SIZE) {
-      const batch = allPts.slice(b, b + BATCH_SIZE);
-      const bn    = Math.floor(b / BATCH_SIZE) + 1;
+    for (let b = 0; b < total; b += GEE_BATCH) {
+      const batch = allPts.slice(b, b + GEE_BATCH);
+      const bn    = Math.floor(b / GEE_BATCH) + 1;
       logLine(`Batch ${bn}/${totalB} — ${batch.length} pts`);
-      const elevs = await fetchElevationsBatch(batch);
-      allElevs.push(...elevs);
+      const results = await fetchElevationsBatchGEE(batch);
+      allElevs.push(...results.map(r => r.elevation));
+      allResolutions.push(...results.map(r => r.resolution));
       setProgress((allElevs.length / total) * 95);
-      if (b + BATCH_SIZE < total) await sleep(BATCH_DELAY_MS);
+      if (b + GEE_BATCH < total) await sleep(BATCH_DELAY_MS);
     }
 
     logLine(`Received ${allElevs.length} elevation value${allElevs.length !== 1 ? 's' : ''}`, 'log-ok');
+    const count1m   = allResolutions.filter(r => r === '1m').length;
+    const count10m  = allResolutions.filter(r => r === '10m').length;
+    const countNull = allResolutions.filter(r => r === 'null').length;
+    logLine(`Resolution summary — 1m: ${count1m}  10m: ${count10m}  no data: ${countNull}`, 'log-info');
 
     // Write ground elevations into waypointData
     for (let i = 0; i < waypointData.length; i++) {
@@ -2552,30 +2559,58 @@ function buildPreview() {
   const accent2 = getCSSVar('--accent2');
   const muted   = getCSSVar('--muted');
 
-  // ── Compute cumulative distance array ──────────────────────────────────
-  const cumDist = [0];
-  for (let i = 1; i < waypointData.length; i++) {
-    const d = haversine(
-      waypointData[i-1].lat, waypointData[i-1].lon,
-      waypointData[i].lat,   waypointData[i].lon
-    );
-    cumDist.push(cumDist[i-1] + d);
-  }
-
-  // ── Chart data (downsampled) ───────────────────────────────────────────
-  const MAX_CHART_PTS = 500;
-  const step = Math.max(1, Math.floor(waypointData.length / MAX_CHART_PTS));
-  const chartPts = [];
-  for (let i = 0; i < waypointData.length; i += step) chartPts.push(i);
-  if (chartPts[chartPts.length - 1] !== waypointData.length - 1) chartPts.push(waypointData.length - 1);
+  // ── Ground elevation uses the full original dense dataset; flight uses thinned ──
+  const denseData  = window._originalWaypointData || waypointData;
 
   const launchElev = missionStartPoint
     ? missionStartPoint.groundElevation
     : waypointData[0].groundElevation;
 
-  const labels     = chartPts.map(i => (cumDist[i] / 1000).toFixed(2));
-  const groundData = chartPts.map(i => waypointData[i].groundElevation);
-  const flightData = chartPts.map(i => Math.round((waypointData[i].heightAboveLaunch + launchElev) * 100) / 100);
+  // ── Ground: cumulative distance over all dense points (downsampled to 500) ──
+  const denseCumDist = [0];
+  for (let i = 1; i < denseData.length; i++) {
+    denseCumDist.push(denseCumDist[i-1] + haversine(
+      denseData[i-1].lat, denseData[i-1].lon,
+      denseData[i].lat,   denseData[i].lon
+    ));
+  }
+  const MAX_CHART_PTS = 500;
+  const groundStep = Math.max(1, Math.floor(denseData.length / MAX_CHART_PTS));
+  const groundPts  = [];
+  for (let i = 0; i < denseData.length; i += groundStep) groundPts.push(i);
+  if (groundPts[groundPts.length - 1] !== denseData.length - 1) groundPts.push(denseData.length - 1);
+
+  // ── Flight: thinned waypoints, cumulative distance for interpolation ──
+  const thinnedCumDist = [0];
+  for (let i = 1; i < waypointData.length; i++) {
+    thinnedCumDist.push(thinnedCumDist[i-1] + haversine(
+      waypointData[i-1].lat, waypointData[i-1].lon,
+      waypointData[i].lat,   waypointData[i].lon
+    ));
+  }
+
+  // Labels and ground data from the dense set
+  const labels     = groundPts.map(i => (denseCumDist[i] / 1000).toFixed(2));
+  const groundData = groundPts.map(i => denseData[i].groundElevation);
+
+  // Flight altitude interpolated from thinned waypoints onto the dense distance axis
+  const flightData = groundPts.map(i => {
+    const d = denseCumDist[i];
+    let lo = 0;
+    for (let t = 0; t < thinnedCumDist.length - 1; t++) {
+      if (thinnedCumDist[t + 1] >= d) { lo = t; break; }
+      lo = t;
+    }
+    const hi   = Math.min(lo + 1, waypointData.length - 1);
+    const span = thinnedCumDist[hi] - thinnedCumDist[lo];
+    const frac = span > 0 ? (d - thinnedCumDist[lo]) / span : 0;
+    const h    = waypointData[lo].heightAboveLaunch
+               + frac * (waypointData[hi].heightAboveLaunch - waypointData[lo].heightAboveLaunch);
+    return Math.round((h + launchElev) * 100) / 100;
+  });
+
+  // chartPts aligned to waypointData for marker hover sync
+  const chartPts = waypointData.map((_, i) => i);
 
   // ── Map ────────────────────────────────────────────────────────────────
   if (!previewMap) {
@@ -2629,12 +2664,15 @@ function buildPreview() {
 
     marker.on('mouseover', () => {
       if (!previewChart) return;
-      // Find the chartPts index closest to this waypoint index
+      // Find the chart index (in dense groundPts) closest by distance to this thinned waypoint
+      const tcd  = previewChart._thinnedCumDist;
+      const dcd  = previewChart._denseCumDist;
+      const gpts = previewChart._chartPts;
+      if (!tcd || !dcd || !gpts) return;
+      const wpDist = tcd[wpIndex] ?? 0;
       let best = 0, bestDist = Infinity;
-      const pts = previewChart._chartPts;
-      if (!pts) return;
-      for (let ci = 0; ci < pts.length; ci++) {
-        const d = Math.abs(pts[ci] - wpIndex);
+      for (let ci = 0; ci < gpts.length; ci++) {
+        const d = Math.abs(dcd[gpts[ci]] - wpDist);
         if (d < bestDist) { bestDist = d; best = ci; }
       }
       _chartHoverIndex = best;
@@ -2730,7 +2768,9 @@ function buildPreview() {
       }
     }
   });
-  previewChart._chartPts = chartPts;
+  previewChart._chartPts       = groundPts;        // indices into denseData
+  previewChart._denseCumDist   = denseCumDist;     // cumulative dist for dense points
+  previewChart._thinnedCumDist = thinnedCumDist;   // cumulative dist for thinned points
 }
 
 document.getElementById('btn-preview-toggle').addEventListener('click', () => {
