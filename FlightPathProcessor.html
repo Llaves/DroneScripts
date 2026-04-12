@@ -1170,13 +1170,21 @@
           function phase1(headers, rows) {
             if (headers.length < 9) throw new Error(`Need >= 9 columns, found ${headers.length}`);
             const EXPECTED = ['time_s', 'lat', 'lng', 'alt_m', 'distance_to_home_m', 'height_m', 'vps_height_m', 'altitude_m', 'speed_ms'];
-            const bad = EXPECTED.map((name, i) => headers[i] !== name ? `col ${i}: expected "${name}", got "${headers[i]}"` : null).filter(Boolean);
+            // Col 8 accepts either speed_ms or speed_kmh
+            const needsSpeedConvert = headers[8] === 'speed_kmh';
+            const bad = EXPECTED.map((name, i) => {
+              if (i === 8) return (!needsSpeedConvert && headers[8] !== 'speed_ms') ? `col 8: expected "speed_ms" or "speed_kmh", got "${headers[8]}"` : null;
+              return headers[i] !== name ? `col ${i}: expected "${name}", got "${headers[i]}"` : null;
+            }).filter(Boolean);
             if (bad.length) throw new Error(`Unexpected headers — ${bad.join('; ')}`);
-            const kH = [0, 1, 2, 5, 6, 7, 8].map(i => headers[i]);
+            if (needsSpeedConvert) log('ℹ speed_kmh detected — converting to m/s', 'log-info');
+
             const latH = headers[1]; // 'lat'
             const lngH = headers[2]; // 'lng'
-            const lastCol = kH[kH.length - 1];
-            const allH = [...kH, 'GndElev', 'Distance Along Path', 'FlightAltitude', 'HeightAboveGround'];
+            const timeH = headers[0]; // 'time_s'
+            const speedH = headers[8]; // 'speed_ms' or 'speed_kmh'
+            // Output headers always use speed_ms regardless of input
+            const allH = [...[0, 1, 2, 5, 6, 7].map(i => headers[i]), 'speed_ms', 'GndElev', 'Distance Along Path', 'FlightAltitude', 'HeightAboveGround'];
 
             // Validate coordinates — collect bad row numbers (1-based, skipping header)
             const badRowNums = [];
@@ -1196,7 +1204,10 @@
 
             const out = validRows.map(row => {
               const r = {};
-              kH.forEach(h => r[h] = row[h]);
+              [0, 1, 2, 5, 6, 7].map(i => headers[i]).forEach(h => r[h] = row[h]);
+              // Normalise speed to m/s
+              const rawSpeed = parseFloat(row[speedH]) || 0;
+              r['speed_ms'] = needsSpeedConvert ? rawSpeed / 3.6 : rawSpeed;
               r.GndElev = null;
               r['Distance Along Path'] = null;
               r.FlightAltitude = null;
@@ -1205,8 +1216,9 @@
             });
             out[0]['Distance Along Path'] = 0;
             for (let i = 1; i < out.length; i++) {
-              const v = parseFloat(validRows[i][lastCol]) || 0;
-              out[i]['Distance Along Path'] = out[i - 1]['Distance Along Path'] + 0.1 * v;
+              const dt = Math.max(0, (parseFloat(validRows[i][timeH]) || 0) - (parseFloat(validRows[i - 1][timeH]) || 0));
+              const v = out[i]['speed_ms']; // already in m/s
+              out[i]['Distance Along Path'] = out[i - 1]['Distance Along Path'] + dt * v;
             }
             return { headers: allH, rows: out };
           }
