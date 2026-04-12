@@ -494,10 +494,16 @@
         color: var(--text);
       }
 
-      .sign-pill.active {
+      .sign-pill.active,
+      .sign-pill.active:focus,
+      .sign-pill.active:active,
+      .sign-pill.active:hover {
         background: var(--accent);
         color: #fff;
+        outline: none;
       }
+
+      .sign-pill:focus { outline: none; }
     </style>
   </head>
   <body>
@@ -512,7 +518,7 @@
       </div>
       <div>
         <h1>FlightPath<span style="opacity:.55">SRT</span></h1>
-        <p>Generate SRT subtitle files from flight-data CSV &middot; v 1.0 &middot; Powered by FlightPathProcessor</p>
+        <p>Generate SRT subtitle files from flight-data CSV &middot; 1.1 &middot; Powered by FlightPathProcessor</p>
       </div>
       <div class="header-right">
         <button class="theme-toggle" id="theme-toggle">
@@ -559,6 +565,18 @@
             <label>Offset (seconds)</label>
             <input type="number" id="offset-input" value="0" min="0" step="0.1" placeholder="e.g. 14">
             <div class="field-hint">Seconds to shift all subtitle timestamps. E.g. 14 means CSV second 0 appears at video second 14.</div>
+          </div>
+
+          <div class="field">
+            <label>Timestamp Format</label>
+            <div class="sign-pills">
+              <button class="sign-pill active" id="pill-mmss" data-fmt="mmss">MM:SS</button>
+              <button class="sign-pill" id="pill-secs" data-fmt="secs">Seconds</button>
+            </div>
+            <div class="field-hint">
+              <strong>MM:SS</strong> e.g. <code>01:24</code> &nbsp;·&nbsp;
+              <strong>Seconds</strong> e.g. <code>84</code>
+            </div>
           </div>
 
           <div class="field">
@@ -629,6 +647,7 @@
       let loadedRows = null;
       let srtContent = '';
       let offsetSign = +1;
+      let timeFormat = 'mmss'; // 'mmss' | 'secs'
 
       // ── Status helpers ────────────────────────────────────────────────────
       function showStatus(msg, type = '') {
@@ -676,7 +695,7 @@
 
           const height    = parseFloat(rows[i]['HeightAboveGround']);
           const rounded   = roundHalf(height);
-          const tsStr     = secondsToMmSs(csvTime);
+          const tsStr     = timeFormat === 'mmss' ? secondsToMmSs(csvTime) : String(Math.floor(csvTime));
 
           entries.push({ index, start: videoTime, end: endTime, text: `${tsStr}  ${rounded.toFixed(1)} m` });
           index++;
@@ -848,11 +867,21 @@
         if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
       });
 
+      // ── Timestamp format pills ────────────────────────────────────────────
+      document.querySelectorAll('[data-fmt]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          timeFormat = btn.dataset.fmt;
+          btn.closest('.sign-pills').querySelectorAll('.sign-pill').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          if (loadedRows) generate();
+        });
+      });
+
       // ── Offset sign pills ─────────────────────────────────────────────────
-      document.querySelectorAll('.sign-pill').forEach(btn => {
+      document.querySelectorAll('[data-sign]').forEach(btn => {
         btn.addEventListener('click', () => {
           offsetSign = btn.dataset.sign === '+' ? +1 : -1;
-          document.querySelectorAll('.sign-pill').forEach(b => b.classList.remove('active'));
+          btn.closest('.sign-pills').querySelectorAll('.sign-pill').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
         });
       });
@@ -885,8 +914,11 @@
         $('preview-panel').classList.remove('visible');
         $('offset-input').value = '0';
         offsetSign = +1;
+        timeFormat = 'mmss';
         document.querySelectorAll('.sign-pill').forEach(b => b.classList.remove('active'));
         $('pill-pos').classList.add('active');
+        document.querySelectorAll('[data-fmt]').forEach(b => b.classList.remove('active'));
+        $('pill-mmss').classList.add('active');
         hideStatus();
       });
 
