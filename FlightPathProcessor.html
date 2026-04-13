@@ -288,6 +288,39 @@
         cursor: pointer;
       }
 
+      .info-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 15px;
+        color: var(--accent);
+        cursor: pointer;
+        flex-shrink: 0;
+        user-select: none;
+        transition: opacity .15s;
+      }
+
+      .info-icon:hover { opacity: .7; }
+
+      .info-popup {
+        display: none;
+        position: absolute;
+        z-index: 100;
+        background: var(--surface);
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-family: 'Barlow', sans-serif;
+        color: var(--text);
+        max-width: 280px;
+        box-shadow: 0 4px 16px rgba(0,0,0,.25);
+        line-height: 1.5;
+        margin-top: 6px;
+      }
+
+      .info-popup.open { display: block; }
+
       .btn {
         font-family: 'Roboto Mono', monospace;
         font-size: 14px;
@@ -766,9 +799,13 @@
             <option value="aster30m">OpenTopoData ASTER 30m (global)</option>
           </select>
         </div>
-        <div class="field checkbox-field">
+        <div class="field checkbox-field" style="position:relative;">
           <input type="checkbox" checked="checked" id="prefer-vps">
           <label for="prefer-vps">Prefer VPS_height</label>
+          <span class="info-icon" id="vps-info-icon">ⓘ</span>
+          <div class="info-popup" id="vps-info-popup">
+            If checked, VPS heights below 10 m (measured above the surface) will be used in place of the calculated height above ground.
+          </div>
         </div>
       </div>
       <div style="display:flex;gap:12px;align-items:stretch;">
@@ -1106,7 +1143,6 @@
             $('upload-filename').textContent = '';
             fi.value = '';
             $('kml-name').value = 'Flight Path';
-            $('dataset').value = 'gee3dep';
             $('prefer-vps').checked = true;
             ['btn-csv', 'btn-kml', 'btn-dl-chart1', 'btn-dl-chart2', 'btn-pdf'].forEach(id => $(id).disabled = true);
             $('progress-section').classList.remove('visible');
@@ -1129,7 +1165,7 @@
               if (axis === xAxisMode) return;
               xAxisMode = axis;
               document.querySelectorAll('.xaxis-pill').forEach(p => p.classList.toggle('active', p.dataset.axis === axis));
-              if (processedData) renderCharts(processedData.rows, processedData.headers);
+              if (processedData) renderCharts(processedData.rows, processedData.headers, processedData.units);
             });
           });
 
@@ -1169,24 +1205,49 @@
 
           function phase1(headers, rows) {
             if (headers.length < 9) throw new Error(`Need >= 9 columns, found ${headers.length}`);
-            const EXPECTED = ['time_s', 'lat', 'lng', 'alt_m', 'distance_to_home_m', 'height_m', 'vps_height_m', 'altitude_m', 'speed_ms'];
-            // Col 8 accepts either speed_ms or speed_kmh
-            const needsSpeedConvert = headers[8] === 'speed_kmh';
-            const bad = EXPECTED.map((name, i) => {
-              if (i === 8) return (!needsSpeedConvert && headers[8] !== 'speed_ms') ? `col 8: expected "speed_ms" or "speed_kmh", got "${headers[8]}"` : null;
-              return headers[i] !== name ? `col ${i}: expected "${name}", got "${headers[i]}"` : null;
-            }).filter(Boolean);
+
+            // --- Speed: col 8 ---
+            const SPEED_FACTORS = { speed_ms: 1, speed_kmh: 1/3.6, speed_mph: 0.44704, speed_fts: 0.3048 };
+            const speedH = headers[8];
+            if (!(speedH in SPEED_FACTORS)) throw new Error(`col 8: expected speed_ms / speed_kmh / speed_mph / speed_fts, got "${speedH}"`);
+            const speedFactor = SPEED_FACTORS[speedH];
+            if (speedH !== 'speed_ms') log(`ℹ ${speedH} detected — converting to m/s`, 'log-info');
+
+            // --- Height: col 5 ---
+            const heightH = headers[5];
+            if (heightH !== 'height_m' && heightH !== 'height_ft') throw new Error(`col 5: expected height_m or height_ft, got "${heightH}"`);
+            const heightUnit = heightH === 'height_ft' ? 'ft' : 'm';
+            const heightToM = heightUnit === 'ft' ? 0.3048 : 1;
+            if (heightUnit === 'ft') log('ℹ height_ft detected — converting to m internally', 'log-info');
+
+            // --- VPS height: col 6 ---
+            const vpsH = headers[6];
+            if (vpsH !== 'vps_height_m' && vpsH !== 'vps_height_ft') throw new Error(`col 6: expected vps_height_m or vps_height_ft, got "${vpsH}"`);
+            const vpsToM = vpsH === 'vps_height_ft' ? 0.3048 : 1;
+            if (vpsH === 'vps_height_ft') log('ℹ vps_height_ft detected — converting to m internally', 'log-info');
+
+            // --- Remaining fixed columns: time, lat, lng must be exact; alt, distance_to_home, altitude accept _m or _ft ---
+            const EXACT_FIXED = { 0: 'time_s', 1: 'lat', 2: 'lng' };
+            const DUAL_FIXED  = { 3: ['alt_m', 'alt_ft'], 4: ['distance_to_home_m', 'distance_to_home_ft'], 7: ['altitude_m', 'altitude_ft'] };
+            const bad = [
+              ...Object.entries(EXACT_FIXED).map(([i, name]) =>
+                headers[i] !== name ? `col ${i}: expected "${name}", got "${headers[i]}"` : null),
+              ...Object.entries(DUAL_FIXED).map(([i, names]) =>
+                !names.includes(headers[i]) ? `col ${i}: expected ${names.map(n => `"${n}"`).join(' or ')}, got "${headers[i]}"` : null)
+            ].filter(Boolean);
             if (bad.length) throw new Error(`Unexpected headers — ${bad.join('; ')}`);
-            if (needsSpeedConvert) log('ℹ speed_kmh detected — converting to m/s', 'log-info');
 
-            const latH = headers[1]; // 'lat'
-            const lngH = headers[2]; // 'lng'
-            const timeH = headers[0]; // 'time_s'
-            const speedH = headers[8]; // 'speed_ms' or 'speed_kmh'
-            // Output headers always use speed_ms regardless of input
-            const allH = [...[0, 1, 2, 5, 6, 7].map(i => headers[i]), 'speed_ms', 'GndElev', 'Distance Along Path', 'FlightAltitude', 'HeightAboveGround'];
+            const latH  = headers[1];
+            const lngH  = headers[2];
+            const timeH = headers[0];
+            const altH  = headers[3]; // pass-through, keep original name in output
+            const distH = headers[4]; // pass-through
+            const absAltH = headers[7]; // pass-through
+            // Output headers use original input column names — CSV reflects what the user put in
+            const allH = ['time_s', 'lat', 'lng', altH, distH, heightH, vpsH, absAltH, speedH,
+                          'GndElev', 'Distance Along Path', 'FlightAltitude', 'HeightAboveGround'];
 
-            // Validate coordinates — collect bad row numbers (1-based, skipping header)
+            // --- Coordinate validation ---
             const badRowNums = [];
             const validRows = rows.filter((row, i) => {
               const lat = parseFloat(row[latH]);
@@ -1204,10 +1265,20 @@
 
             const out = validRows.map(row => {
               const r = {};
-              [0, 1, 2, 5, 6, 7].map(i => headers[i]).forEach(h => r[h] = row[h]);
-              // Normalise speed to m/s
-              const rawSpeed = parseFloat(row[speedH]) || 0;
-              r['speed_ms'] = needsSpeedConvert ? rawSpeed / 3.6 : rawSpeed;
+              r['time_s']       = row[timeH];
+              r['lat']          = row[latH];
+              r['lng']          = row[lngH];
+              r[altH]           = row[altH];           // pass-through as-is
+              r[distH]          = row[distH];          // pass-through as-is
+              // Store original raw values under original column names for CSV output
+              r[heightH]        = row[heightH];
+              r[vpsH]           = row[vpsH];
+              r[absAltH]        = row[absAltH];        // pass-through as-is
+              r[speedH]         = row[speedH];
+              // Internal-only keys in meters/m/s for phase2 math (not in allH, won't appear in CSV)
+              r['_height_m']    = (parseFloat(row[heightH]) || 0) * heightToM;
+              r['_vps_height_m']= (parseFloat(row[vpsH])    || 0) * vpsToM;
+              r['_speed_ms']    = (parseFloat(row[speedH])  || 0) * speedFactor;
               r.GndElev = null;
               r['Distance Along Path'] = null;
               r.FlightAltitude = null;
@@ -1217,10 +1288,12 @@
             out[0]['Distance Along Path'] = 0;
             for (let i = 1; i < out.length; i++) {
               const dt = Math.max(0, (parseFloat(validRows[i][timeH]) || 0) - (parseFloat(validRows[i - 1][timeH]) || 0));
-              const v = out[i]['speed_ms']; // already in m/s
+              const v = out[i]['_speed_ms']; // internal m/s value
               out[i]['Distance Along Path'] = out[i - 1]['Distance Along Path'] + dt * v;
             }
-            return { headers: allH, rows: out };
+            // units.heightUnit drives output labelling and KML altitude conversion downstream
+            const units = { heightUnit };
+            return { headers: allH, rows: out, units };
           }
 
           async function fetchElevationsBatch(locs, dataset) {
@@ -1260,14 +1333,13 @@
           function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
           async function phase2(p1, dataset, onPct) {
-            const { headers, rows } = p1;
+            const { headers, rows, units } = p1;
             const preferVps = $('prefer-vps').checked;
             const useGEE = dataset === 'gee3dep';
-            const findH = pat => headers.find(h => h.toLowerCase().includes(pat));
-            const latH = findH('lat') || headers[0];
-            const lngH = findH('lng') || findH('lon') || headers[1];
-            const heightH = findH('height_m');
-            const vpsH = 'vps_height_m';
+            const toFt = units.heightUnit === 'ft'; // elevation API always returns meters; convert output if needed
+            const outFactor = toFt ? 3.28084 : 1;
+            const latH = 'lat';
+            const lngH = 'lng';
             const sel = rows.filter((_, i) => i % 10 === 0);
             const total = sel.length;
             log(`Selected ${total} rows (every 10th)`, 'log-info');
@@ -1300,24 +1372,26 @@
               const countNull = allResolutions.filter(r => r === 'null').length;
               log(`Resolution summary — 1m: ${count1m}  10m: ${count10m}  no data: ${countNull}`, 'log-info');
             }
-            const launchElev = allElevs[0];
+            const launchElev = allElevs[0]; // meters
             sel.forEach((row, i) => {
-              const gnd = Math.round(allElevs[i] * 100) / 100;
-              const h = parseFloat(row[heightH]) || 0;
-              const vps = parseFloat(row[vpsH]) || 0;
-              row.GndElev = gnd;
-              row.FlightAltitude = Math.round((h + launchElev) * 100) / 100;
-
-              let hag = Math.round((row.FlightAltitude - gnd) * 100) / 100;
-              // If VPS height is available and preferred, and seems reasonable (<10 m), use it instead of the calculated HAG
-              if (preferVps && vps < 10) {
-                  hag = vps;
-              }
-              row.HeightAboveGround = hag;
+              const gndM = allElevs[i];                        // meters from API
+              const hM   = parseFloat(row['_height_m'])  || 0; // internal meters
+              const vpsM = parseFloat(row['_vps_height_m']) || 0; // internal meters
+              // All intermediate math in meters; apply outFactor only when storing
+              const flightAltM = hM + launchElev;
+              let hagM = flightAltM - gndM;
+              // VPS threshold check in meters — works correctly regardless of original input unit
+              if (preferVps && vpsM > 0 && vpsM < 10) hagM = vpsM;
+              row.GndElev         = Math.round(gndM       * outFactor * 100) / 100;
+              row.FlightAltitude  = Math.round(flightAltM * outFactor * 100) / 100;
+              row.HeightAboveGround = Math.round(hagM      * outFactor * 100) / 100;
               if (useGEE) row.ElevResolution = allResolutions[i] ?? '';
-              delete row[vpsH];
+              // Remove internal-only keys so they don't appear in CSV output
+              delete row['_height_m'];
+              delete row['_vps_height_m'];
+              delete row['_speed_ms'];
             });
-            return { rows: sel, useGEE };
+            return { rows: sel, useGEE, units };
           }
 
           async function processFile() {
@@ -1337,12 +1411,25 @@
               const elevDataset = $('dataset').value;
               const elevSource = elevDataset === 'gee3dep' ? 'Google Earth Engine' : 'OpenTopoData.org';
               log(`Phase 2: fetching elevations from ${elevSource} via proxy ...`, 'log-info');
-              const { rows: finalRows, useGEE } = await phase2(p1, $('dataset').value, pct => setProgress(pct));
+              const { rows: finalRows, useGEE, units } = await phase2(p1, $('dataset').value, pct => setProgress(pct));
               setProgress(95);
-              let outHeaders = p1.headers.filter(h => h !== 'vps_height_m');
+              const u = units.heightUnit; // 'm' or 'ft'
+              const distToU = u === 'ft' ? 3.28084 : 1;
+              // Convert Distance Along Path from meters to output unit in the rows
+              finalRows.forEach(r => { r['Distance Along Path'] = Math.round((r['Distance Along Path'] || 0) * distToU * 100) / 100; });
+              let outHeaders = p1.headers.filter(h => !h.startsWith('vps_height'));
               if (useGEE) outHeaders = [...outHeaders, 'ElevResolution'];
-              processedData = { headers: outHeaders, rows: finalRows };
-              renderCharts(finalRows, processedData.headers);
+              // Build suffixed display headers for CSV — row object keys stay unsuffixed
+              const SUFFIX_MAP = {
+                'GndElev':               `GndElev_${u}`,
+                'Distance Along Path':   `Distance Along Path ${u}`,
+                'FlightAltitude':        `FlightAltitude_${u}`,
+                'HeightAboveGround':     `HeightAboveGround_${u}`,
+              };
+              const csvDisplayHeaders = outHeaders.map(h => SUFFIX_MAP[h] || h);
+              const csvDataKeys = outHeaders; // row object keys are unsuffixed
+              processedData = { headers: outHeaders, csvDisplayHeaders, csvDataKeys, rows: finalRows, units };
+              renderCharts(finalRows, processedData.headers, units);
               setProgress(100);
               log(`Complete — ${finalRows.length} output rows`, 'log-ok');
               $('btn-csv').disabled = false;
@@ -1392,9 +1479,10 @@
             };
           }
 
-          function renderCharts(rows, headers) {
+          function renderCharts(rows, headers, units) {
+            const u = (units && units.heightUnit) || 'm';
             const useTime = xAxisMode === 'time';
-            const xLabel = useTime ? 'Time (s)' : 'Distance Along Path (m)';
+            const xLabel = useTime ? 'Time (s)' : `Distance Along Path (${u})`;
             const xWord = useTime ? 'Time' : 'Distance Along Path';
             const xVal = r => useTime ? parseFloat(r['time_s']) || 0 : parseFloat(r['Distance Along Path']) || 0;
             const pts = key => rows.map(r => ({ x: xVal(r), y: r[key] ?? null }));
@@ -1403,25 +1491,25 @@
               type: 'scatter',
               data: {
                 datasets: [{
-                  label: 'Ground Elevation (m)', data: pts('GndElev'), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.1)',
+                  label: `Ground Elevation (${u})`, data: pts('GndElev'), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.1)',
                   borderWidth: 2, pointRadius: 0, fill: true, tension: .3, showLine: true
                 }, {
-                  label: 'Flight Altitude (m)', data: pts('FlightAltitude'), borderColor: isDark ? '#00d4ff' : '#0080aa',
+                  label: `Flight Altitude (${u})`, data: pts('FlightAltitude'), borderColor: isDark ? '#00d4ff' : '#0080aa',
                   backgroundColor: isDark ? 'rgba(0,212,255,.04)' : 'rgba(0,128,170,.04)', borderWidth: 2, pointRadius: 0, fill: false, tension: .3, showLine: true
                 }]
               },
-              options: makeChartOpts(xLabel, 'Altitude (m)')
+              options: makeChartOpts(xLabel, `Altitude (${u})`)
             });
             if (chart2) chart2.destroy();
             chart2 = new Chart($('chart2').getContext('2d'), {
               type: 'scatter',
               data: {
                 datasets: [{
-                  label: 'Height Above Ground (m)', data: pts('HeightAboveGround'), borderColor: '#ff6b35', backgroundColor: 'rgba(255,107,53,.1)',
+                  label: `Height Above Ground (${u})`, data: pts('HeightAboveGround'), borderColor: '#ff6b35', backgroundColor: 'rgba(255,107,53,.1)',
                   borderWidth: 2, pointRadius: 0, fill: true, tension: .3, showLine: true
                 }]
               },
-              options: makeChartOpts(xLabel, 'Height (m)')
+              options: makeChartOpts(xLabel, `Height (${u})`)
             });
             document.querySelector('#chart1-section .chart-subtitle').textContent = `Ground Elevation & Flight Altitude vs ${xWord}`;
             document.querySelector('#chart2-section .chart-subtitle').textContent = `Height Above Ground vs ${xWord}`;
@@ -1434,13 +1522,14 @@
             $('xaxis-toggle').style.display = 'flex';
           }
 
-          function rowsToCSV(h, rows) { return [h.join(','), ...rows.map(r => h.map(k => r[k] ?? '').join(','))].join('\n'); }
+          function rowsToCSV(displayHeaders, dataKeys, rows) { return [displayHeaders.join(','), ...rows.map(r => dataKeys.map(k => r[k] ?? '').join(','))].join('\n'); }
 
-          function generateKML(rows, headers, name) {
+          function generateKML(rows, headers, name, units) {
             const latH = headers.find(h => h.toLowerCase().includes('lat')) || headers[0];
             const lngH = headers.find(h => h.toLowerCase().includes('lng') || h.toLowerCase().includes('lon')) || headers[1];
+            const altToM = (units && units.heightUnit === 'ft') ? 1 / 3.28084 : 1; // KML altitudeMode=absolute requires meters
             const validRows = rows.filter(r => isValidCoord(parseFloat(r[latH]), parseFloat(r[lngH])));
-            const coords = validRows.map(r => `          ${r[lngH]},${r[latH]},${(r.FlightAltitude||0).toFixed(4)}`).join('\n');
+            const coords = validRows.map(r => `          ${r[lngH]},${r[latH]},${((r.FlightAltitude||0) * altToM).toFixed(4)}`).join('\n');
             return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
@@ -1470,13 +1559,24 @@ ${coords}
             a.href = dataUrl; a.download = filename; a.click();
           }
 
+          // VPS hint popup
+          (function () {
+            const icon  = $('vps-info-icon');
+            const popup = $('vps-info-popup');
+            icon.addEventListener('click', e => {
+              e.stopPropagation();
+              popup.classList.toggle('open');
+            });
+            document.addEventListener('click', () => popup.classList.remove('open'));
+          })();
+
           $('btn-csv').addEventListener('click', () => {
             if (!processedData) return;
-            dlBlob(rowsToCSV(processedData.headers, processedData.rows), csvFile.name.replace(/\.csv$/i, '') + '_processed.csv', 'text/csv');
+            dlBlob(rowsToCSV(processedData.csvDisplayHeaders, processedData.csvDataKeys, processedData.rows), csvFile.name.replace(/\.csv$/i, '') + '_processed.csv', 'text/csv');
           });
           $('btn-kml').addEventListener('click', () => {
             if (!processedData) return;
-            dlBlob(generateKML(processedData.rows, processedData.headers, $('kml-name').value || 'Flight Path'), csvFile.name.replace(/\.csv$/i, '') + '_path.kml', 'application/vnd.google-earth.kml+xml');
+            dlBlob(generateKML(processedData.rows, processedData.headers, $('kml-name').value || 'Flight Path', processedData.units), csvFile.name.replace(/\.csv$/i, '') + '_path.kml', 'application/vnd.google-earth.kml+xml');
           });
           $('btn-dl-chart1').addEventListener('click', () => dlCanvas(chart1, 'elevation_profile.png'));
           $('btn-dl-chart2').addEventListener('click', () => dlCanvas(chart2, 'height_above_ground.png'));
