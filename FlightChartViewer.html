@@ -507,7 +507,7 @@
       <div class="logo"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 48 48"><path fill="currentColor" fill-rule="evenodd" d="m31.57 19.103l-2.29 4.672l2.541 4.987a7 7 0 1 1-3.006 2.956L24 29.163l-4.815 2.555a7 7 0 1 1-3.006-2.956l2.541-4.986l-2.29-4.673a7 7 0 1 1 2.895-3.1L24 18.388l4.675-2.385a7 7 0 1 1 2.895 3.1M40 13a5 5 0 0 1-7.548 4.303l1.443-2.946a1.75 1.75 0 1 0-.535-.745l-2.902 1.481A5 5 0 1 1 40 13m-22.458 2.093a5 5 0 1 0-1.994 2.21l-1.443-2.946a1.75 1.75 0 1 1 .535-.745zm-2.271 15.451a5 5 0 1 0 2.147 2.112l-2.872 1.524a1.75 1.75 0 1 1-.751-.74zm15.311 2.112a5 5 0 1 0 2.147-2.112l1.476 2.896a1.75 1.75 0 1 1-.751.74z" clip-rule="evenodd"/></svg></div>
       <div>
         <h1>Flight Chart Viewer</h1>
-        <p>Elevation profile &middot; Height above ground &middot; v 1.0 &middot; Powered by FlightPathProcessor</p>
+        <p>Elevation profile &middot; Height above ground &middot; v 1.1 &middot; Powered by FlightPathProcessor</p>
       </div>
       <div class="header-right">
         <button class="theme-toggle" id="theme-toggle">
@@ -645,6 +645,8 @@
       // ── State ──────────────────────────────────────────────────────────────
       let csvFile = null;
       let loadedRows = null;
+      let loadedUnits = 'm';   // 'm' or 'ft' — detected from CSV headers
+      let colKeys = {};         // maps base name → actual header key in rows
       let chart1 = null;
       let chart2 = null;
       let xAxisMode = 'dist';
@@ -674,11 +676,28 @@
       }
 
       // ── Validate that required columns are present ─────────────────────────
-      const REQUIRED_COLS = ['GndElev', 'FlightAltitude', 'HeightAboveGround', 'Distance Along Path'];
+      // The new CSV format uses unit-suffixed headers: GndElev_m / GndElev_ft, etc.
+      // We accept either old unsuffixed names OR the new suffixed names.
+      const BASE_COLS = ['GndElev', 'FlightAltitude', 'HeightAboveGround', 'Distance Along Path'];
+
+      function findCol(headers, base) {
+        // exact match (old format)
+        if (headers.includes(base)) return base;
+        // suffixed match: GndElev_m, GndElev_ft, "Distance Along Path m", "Distance Along Path ft"
+        const suffixed = headers.find(h => h === base + '_m' || h === base + '_ft' ||
+                                          h === base + ' m'  || h === base + ' ft');
+        return suffixed || null;
+      }
 
       function validateHeaders(headers) {
-        const missing = REQUIRED_COLS.filter(c => !headers.includes(c));
-        return missing;
+        return BASE_COLS.filter(c => !findCol(headers, c));
+      }
+
+      // Detect unit ('m' or 'ft') from the suffixed header names
+      function detectUnits(headers) {
+        const gnd = findCol(headers, 'GndElev') || '';
+        if (gnd.endsWith('_ft') || gnd.endsWith(' ft')) return 'ft';
+        return 'm'; // default / old format
       }
 
       // ── Chart options factory ──────────────────────────────────────────────
@@ -726,12 +745,14 @@
 
       // ── Render charts ──────────────────────────────────────────────────────
       function renderCharts(rows) {
+        const u = loadedUnits; // 'm' or 'ft'
         const useTime = xAxisMode === 'time';
         const hasTime = rows.length > 0 && rows[0]['time_s'] !== undefined;
-        const xLabel  = useTime ? 'Time (s)' : 'Distance Along Path (m)';
+        const xLabel  = useTime ? 'Time (s)' : `Distance Along Path (${u})`;
         const xWord   = useTime ? 'Time' : 'Distance Along Path';
-        const xVal    = r => useTime ? (parseFloat(r['time_s']) || 0) : (parseFloat(r['Distance Along Path']) || 0);
-        const pts     = key => rows.map(r => ({ x: xVal(r), y: parseFloat(r[key]) || null }));
+        const distKey = colKeys['Distance Along Path'];
+        const xVal    = r => useTime ? (parseFloat(r['time_s']) || 0) : (parseFloat(r[distKey]) || 0);
+        const pts     = base => rows.map(r => ({ x: xVal(r), y: parseFloat(r[colKeys[base]]) || null }));
 
         if (chart1) chart1.destroy();
         chart1 = new Chart($('chart1').getContext('2d'), {
@@ -739,14 +760,14 @@
           data: {
             datasets: [
               {
-                label: 'Ground Elevation (m)',
+                label: `Ground Elevation (${u})`,
                 data: pts('GndElev'),
                 borderColor: '#10b981',
                 backgroundColor: 'rgba(16,185,129,.1)',
                 borderWidth: 2, pointRadius: 0, fill: true, tension: .3, showLine: true
               },
               {
-                label: 'Flight Altitude (m)',
+                label: `Flight Altitude (${u})`,
                 data: pts('FlightAltitude'),
                 borderColor: isDark ? '#00d4ff' : '#0080aa',
                 backgroundColor: isDark ? 'rgba(0,212,255,.04)' : 'rgba(0,128,170,.04)',
@@ -754,7 +775,7 @@
               }
             ]
           },
-          options: makeChartOpts(xLabel, 'Altitude (m)')
+          options: makeChartOpts(xLabel, `Altitude (${u})`)
         });
 
         if (chart2) chart2.destroy();
@@ -763,7 +784,7 @@
           data: {
             datasets: [
               {
-                label: 'Height Above Ground (m)',
+                label: `Height Above Ground (${u})`,
                 data: pts('HeightAboveGround'),
                 borderColor: '#ff6b35',
                 backgroundColor: 'rgba(255,107,53,.1)',
@@ -771,7 +792,7 @@
               }
             ]
           },
-          options: makeChartOpts(xLabel, 'Height (m)')
+          options: makeChartOpts(xLabel, `Height (${u})`)
         });
 
         $('chart1-subtitle').textContent = `Ground Elevation & Flight Altitude vs ${xWord}`;
@@ -818,6 +839,13 @@
             return;
           }
 
+          // Build column key map: base name → actual header key used in rows
+          colKeys = {};
+          BASE_COLS.forEach(base => { colKeys[base] = findCol(headers, base); });
+
+          // Detect units from suffixed header names
+          loadedUnits = detectUnits(headers);
+
           loadedRows = rows;
 
           // Update upload zone
@@ -851,7 +879,7 @@
 
       // ── Reset ──────────────────────────────────────────────────────────────
       $('btn-reset').addEventListener('click', () => {
-        csvFile = null; loadedRows = null;
+        csvFile = null; loadedRows = null; loadedUnits = 'm'; colKeys = {};
         if (chart1) { chart1.destroy(); chart1 = null; }
         if (chart2) { chart2.destroy(); chart2 = null; }
         zone.classList.remove('has-file', 'drag-over');
@@ -888,8 +916,11 @@
       function generateKML(rows, name) {
         const latH = Object.keys(rows[0]).find(h => h.toLowerCase() === 'lat') || 'lat';
         const lngH = Object.keys(rows[0]).find(h => h.toLowerCase() === 'lng' || h.toLowerCase() === 'lon') || 'lng';
+        const altKey = colKeys['FlightAltitude'] || 'FlightAltitude';
+        // KML altitudeMode=absolute requires meters — convert if data is in ft
+        const toM = loadedUnits === 'ft' ? (1 / 3.28084) : 1;
         const coords = rows.map(r =>
-          `          ${r[lngH]},${r[latH]},${(parseFloat(r['FlightAltitude']) || 0).toFixed(4)}`
+          `          ${r[lngH]},${r[latH]},${((parseFloat(r[altKey]) || 0) * toM).toFixed(4)}`
         ).join('\n');
         return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">

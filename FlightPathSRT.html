@@ -518,7 +518,7 @@
       </div>
       <div>
         <h1>FlightPath<span style="opacity:.55">SRT</span></h1>
-        <p>Generate SRT subtitle files from flight-data CSV &middot; 1.1 &middot; Powered by FlightPathProcessor</p>
+        <p>Generate SRT subtitle files from flight-data CSV &middot; 1.2 &middot; Powered by FlightPathProcessor</p>
       </div>
       <div class="header-right">
         <button class="theme-toggle" id="theme-toggle">
@@ -538,7 +538,7 @@
           <input type="file" id="file-input" accept=".csv">
           <div class="upload-icon" id="upload-icon">↑</div>
           <div class="upload-label"><strong>Drop flight CSV here</strong></div>
-          <div class="upload-sub">or click to browse &mdash; expects <code>time_s</code> and <code>HeightAboveGround</code> columns</div>
+          <div class="upload-sub">or click to browse &mdash; expects <code>time_s</code> and <code>HeightAboveGround_m</code> or <code>HeightAboveGround_ft</code> columns</div>
           <div class="upload-filename" id="upload-filename"></div>
         </div>
         <button class="btn btn-outline btn-reset-zone" id="btn-reset" title="Reset to initial state" disabled>↺ Reset</button>
@@ -648,6 +648,8 @@
       let srtContent = '';
       let offsetSign = +1;
       let timeFormat = 'mmss'; // 'mmss' | 'secs'
+      let heightCol  = 'HeightAboveGround'; // detected column name
+      let heightUnit = 'm';                 // detected unit label
 
       // ── Status helpers ────────────────────────────────────────────────────
       function showStatus(msg, type = '') {
@@ -693,11 +695,11 @@
             endTime = videoTime + 1.0;
           }
 
-          const height    = parseFloat(rows[i]['HeightAboveGround']);
+          const height    = parseFloat(rows[i][heightCol]);
           const rounded   = roundHalf(height);
           const tsStr     = timeFormat === 'mmss' ? secondsToMmSs(csvTime) : String(Math.floor(csvTime));
 
-          entries.push({ index, start: videoTime, end: endTime, text: `${tsStr}  ${rounded.toFixed(1)} m` });
+          entries.push({ index, start: videoTime, end: endTime, text: `${tsStr}  ${rounded.toFixed(1)} ${heightUnit}` });
           index++;
         }
         return entries;
@@ -735,10 +737,23 @@
           const text = await file.text();
           const { headers, rows } = parseCSV(text);
 
-          const missing = ['time_s', 'HeightAboveGround'].filter(c => !headers.includes(c));
-          if (missing.length) {
-            showStatus(`Missing required columns: ${missing.join(', ')} — ensure this is a flight_processor output CSV.`, 'error');
+          const hasHeightM  = headers.includes('HeightAboveGround_m');
+          const hasHeightFt = headers.includes('HeightAboveGround_ft');
+          const hasHeightLegacy = headers.includes('HeightAboveGround');
+          if (!hasHeightM && !hasHeightFt && !hasHeightLegacy) {
+            showStatus(`Missing required height column (HeightAboveGround_m or HeightAboveGround_ft) — ensure this is a flight_processor output CSV.`, 'error');
             return;
+          }
+          if (!headers.includes('time_s')) {
+            showStatus(`Missing required column: time_s — ensure this is a flight_processor output CSV.`, 'error');
+            return;
+          }
+          if (hasHeightM) {
+            heightCol = 'HeightAboveGround_m'; heightUnit = 'm';
+          } else if (hasHeightFt) {
+            heightCol = 'HeightAboveGround_ft'; heightUnit = 'ft';
+          } else {
+            heightCol = 'HeightAboveGround'; heightUnit = 'm';
           }
 
           loadedRows = rows;
@@ -904,6 +919,7 @@
       // ── Reset ─────────────────────────────────────────────────────────────
       $('btn-reset').addEventListener('click', () => {
         csvFile = null; loadedRows = null; srtContent = '';
+        heightCol = 'HeightAboveGround'; heightUnit = 'm';
         zone.classList.remove('has-file', 'drag-over');
         $('upload-icon').textContent = '↑';
         $('upload-filename').textContent = '';
