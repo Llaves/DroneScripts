@@ -758,7 +758,7 @@
       <div class="logo"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 48 48"><path fill="currentColor" fill-rule="evenodd" d="m31.57 19.103l-2.29 4.672l2.541 4.987a7 7 0 1 1-3.006 2.956L24 29.163l-4.815 2.555a7 7 0 1 1-3.006-2.956l2.541-4.986l-2.29-4.673a7 7 0 1 1 2.895-3.1L24 18.388l4.675-2.385a7 7 0 1 1 2.895 3.1M40 13a5 5 0 0 1-7.548 4.303l1.443-2.946a1.75 1.75 0 1 0-.535-.745l-2.902 1.481A5 5 0 1 1 40 13m-22.458 2.093a5 5 0 1 0-1.994 2.21l-1.443-2.946a1.75 1.75 0 1 1 .535-.745zm-2.271 15.451a5 5 0 1 0 2.147 2.112l-2.872 1.524a1.75 1.75 0 1 1-.751-.74zm15.311 2.112a5 5 0 1 0 2.147-2.112l1.476 2.896a1.75 1.75 0 1 1-.751.74z" clip-rule="evenodd"/></svg></div>
       <div>
         <h1>Flight Path Processor</h1>
-        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 2.4</p>
+        <p>Drone telemetry &middot; Ground elevation &middot; KML export &middot V 2.5</p>
       </div>
       <div class="header-right">
         <button class="theme-toggle" id="theme-toggle">
@@ -800,12 +800,21 @@
             <option value="aster30m">OpenTopoData ASTER 30m (global)</option>
           </select>
         </div>
-        <div class="field checkbox-field" style="position:relative;">
+        <div class="field checkbox-field" style="position:relative; flex-wrap:wrap; gap:8px; height:auto; align-items:center;">
           <input type="checkbox" checked="checked" id="prefer-vps">
           <label for="prefer-vps">Prefer VPS_height</label>
           <span class="info-icon" id="vps-info-icon">ⓘ</span>
           <div class="info-popup" id="vps-info-popup">
-            If checked, VPS heights below 10 m (measured above the surface) will be used in place of the calculated height above ground.
+            If checked, VPS heights below the threshold (measured above the surface) will be used in place of the calculated height above ground.
+          </div>
+          <div id="vps-threshold-wrap" style="display:flex; align-items:center; gap:6px; margin-left:4px;">
+            <label for="vps-threshold" style="margin-bottom:0; font-size:11px; white-space:nowrap;">VPS Threshold</label>
+            <input type="number" id="vps-threshold" value="10" min="0" step="0.1"
+              style="width:70px; padding:4px 8px; font-size:13px;">
+            <span class="info-icon" id="vps-threshold-info-icon">ⓘ</span>
+            <div class="info-popup" id="vps-threshold-info-popup">
+              Below this value, the VPS height will be used in place of the drone's reported barometric altitude.
+            </div>
           </div>
         </div>
       </div>
@@ -835,9 +844,13 @@
       <div class="download-section" id="download-section">
         <div class="field">
           <label>Download Options</label>
-          <div style="display:flex;gap:8px;">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <button class="btn btn-outline" id="btn-csv" disabled>↓ CSV</button>
             <button class="btn btn-outline" id="btn-kml" disabled>↓ KML</button>
+            <div class="xaxis-pills" id="kml-mode-pills" style="opacity:0.35;pointer-events:none;">
+              <button class="xaxis-pill active" data-kml-mode="relativeToGround" title="Height above ground level — altitude values represent height above the terrain directly below">AGL</button>
+              <button class="xaxis-pill" data-kml-mode="absolute" title="Absolute altitude — altitude values represent height above sea level">Absolute</button>
+            </div>
             <button class="btn btn-outline" id="btn-pdf" disabled>⎙ PDF</button>
           </div>
         </div>
@@ -1145,7 +1158,14 @@
             fi.value = '';
             $('kml-name').value = 'Flight Path';
             $('prefer-vps').checked = true;
+            $('vps-threshold').value = '10';
+            $('vps-threshold-wrap').style.display = 'flex';
             ['btn-csv', 'btn-kml', 'btn-dl-chart1', 'btn-dl-chart2', 'btn-pdf'].forEach(id => $(id).disabled = true);
+            const kmlPillsReset = $('kml-mode-pills');
+            kmlPillsReset.style.opacity = '0.35';
+            kmlPillsReset.style.pointerEvents = 'none';
+            kmlAltMode = 'relativeToGround';
+            document.querySelectorAll('[data-kml-mode]').forEach(p => p.classList.toggle('active', p.dataset.kmlMode === 'relativeToGround'));
             $('progress-section').classList.remove('visible');
             $('download-section').classList.remove('visible'); //
             $('chart1-section').classList.remove('visible');
@@ -1336,6 +1356,8 @@
           async function phase2(p1, dataset, onPct) {
             const { headers, rows, units } = p1;
             const preferVps = $('prefer-vps').checked;
+            const vpsThreshold = parseFloat($('vps-threshold').value);
+            const vpsThresholdM = (isNaN(vpsThreshold) || vpsThreshold < 0) ? 10 : vpsThreshold;
             const useGEE = dataset === 'gee3dep';
             const toFt = units.heightUnit === 'ft'; // elevation API always returns meters; convert output if needed
             const outFactor = toFt ? 3.28084 : 1;
@@ -1382,7 +1404,7 @@
               const flightAltM = hM + launchElev;
               let hagM = flightAltM - gndM;
               // VPS threshold check in meters — works correctly regardless of original input unit
-              if (preferVps && vpsM > 0 && vpsM < 10) hagM = vpsM;
+              if (preferVps && vpsM > 0 && vpsM < vpsThresholdM) hagM = vpsM;
               row.GndElev         = Math.round(gndM       * outFactor * 100) / 100;
               row.FlightAltitude  = Math.round(flightAltM * outFactor * 100) / 100;
               row.HeightAboveGround = Math.round(hagM      * outFactor * 100) / 100;
@@ -1435,6 +1457,9 @@
               log(`Complete — ${finalRows.length} output rows`, 'log-ok');
               $('btn-csv').disabled = false;
               $('btn-kml').disabled = false;
+              const kmlPills = $('kml-mode-pills');
+              kmlPills.style.opacity = '1';
+              kmlPills.style.pointerEvents = 'auto';
             } catch (err) {
               log('Error: ' + err.message, 'log-err');
               setProgress(0);
@@ -1525,12 +1550,17 @@
 
           function rowsToCSV(displayHeaders, dataKeys, rows) { return [displayHeaders.join(','), ...rows.map(r => dataKeys.map(k => r[k] ?? '').join(','))].join('\n'); }
 
-          function generateKML(rows, headers, name, units) {
+          function generateKML(rows, headers, name, units, altMode) {
             const latH = headers.find(h => h.toLowerCase().includes('lat')) || headers[0];
             const lngH = headers.find(h => h.toLowerCase().includes('lng') || h.toLowerCase().includes('lon')) || headers[1];
-            const altToM = (units && units.heightUnit === 'ft') ? 1 / 3.28084 : 1; // KML altitudeMode=absolute requires meters
+            const toM = (units && units.heightUnit === 'ft') ? 1 / 3.28084 : 1; // KML altitude requires meters
+            const useAGL = altMode !== 'absolute';
             const validRows = rows.filter(r => isValidCoord(parseFloat(r[latH]), parseFloat(r[lngH])));
-            const coords = validRows.map(r => `          ${r[lngH]},${r[latH]},${((r.FlightAltitude||0) * altToM).toFixed(4)}`).join('\n');
+            const coords = validRows.map(r => {
+              const val = useAGL ? (r.HeightAboveGround || 0) : (r.FlightAltitude || 0);
+              return `          ${r[lngH]},${r[latH]},${(val * toM).toFixed(4)}`;
+            }).join('\n');
+            const kmlAltMode = useAGL ? 'relativeToGround' : 'absolute';
             return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
@@ -1538,7 +1568,7 @@
     <Style id="s"><LineStyle><color>ff0000ff</color><width>3</width></LineStyle></Style>
     <Placemark>
       <n>${name}</n><styleUrl>#s</styleUrl>
-      <LineString><altitudeMode>absolute</altitudeMode><coordinates>
+      <LineString><altitudeMode>${kmlAltMode}</altitudeMode><coordinates>
 ${coords}
 </coordinates></LineString></Placemark></Document></kml>`;
           }
@@ -1571,13 +1601,47 @@ ${coords}
             document.addEventListener('click', () => popup.classList.remove('open'));
           })();
 
+          // VPS threshold info popup
+          (function () {
+            const icon  = $('vps-threshold-info-icon');
+            const popup = $('vps-threshold-info-popup');
+            icon.addEventListener('click', e => {
+              e.stopPropagation();
+              popup.classList.toggle('open');
+            });
+            document.addEventListener('click', () => popup.classList.remove('open'));
+          })();
+
+          // Show/hide VPS threshold input based on checkbox
+          (function () {
+            const cb   = $('prefer-vps');
+            const wrap = $('vps-threshold-wrap');
+            function syncThresholdVisibility() {
+              wrap.style.display = cb.checked ? 'flex' : 'none';
+            }
+            cb.addEventListener('change', syncThresholdVisibility);
+            syncThresholdVisibility();
+          })();
+
+          // KML altitude mode pills
+          let kmlAltMode = 'relativeToGround';
+          (function () {
+            const pills = document.querySelectorAll('[data-kml-mode]');
+            pills.forEach(pill => {
+              pill.addEventListener('click', () => {
+                kmlAltMode = pill.dataset.kmlMode;
+                pills.forEach(p => p.classList.toggle('active', p.dataset.kmlMode === kmlAltMode));
+              });
+            });
+          })();
+
           $('btn-csv').addEventListener('click', () => {
             if (!processedData) return;
             dlBlob(rowsToCSV(processedData.csvDisplayHeaders, processedData.csvDataKeys, processedData.rows), csvFile.name.replace(/\.csv$/i, '') + '_processed.csv', 'text/csv');
           });
           $('btn-kml').addEventListener('click', () => {
             if (!processedData) return;
-            dlBlob(generateKML(processedData.rows, processedData.headers, $('kml-name').value || 'Flight Path', processedData.units), csvFile.name.replace(/\.csv$/i, '') + '_path.kml', 'application/vnd.google-earth.kml+xml');
+            dlBlob(generateKML(processedData.rows, processedData.headers, $('kml-name').value || 'Flight Path', processedData.units, kmlAltMode), csvFile.name.replace(/\.csv$/i, '') + '_path.kml', 'application/vnd.google-earth.kml+xml');
           });
           $('btn-dl-chart1').addEventListener('click', () => dlCanvas(chart1, 'elevation_profile.png'));
           $('btn-dl-chart2').addEventListener('click', () => dlCanvas(chart2, 'height_above_ground.png'));
